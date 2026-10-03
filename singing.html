@@ -115,6 +115,11 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
       </div>
     </div>
     <div class="status" id="status">ヘッドホンの使用をおすすめします。スピーカーから出たドローンをマイクが拾うと、測定が乱れます。</div>
+    <div class="row" id="quizBtns">
+      <button class="btn" id="nextBtn">次の音 <kbd>N</kbd></button>
+      <button class="btn" id="hintBtn">お手本を聴く <kbd>H</kbd></button>
+      <label class="status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="auto" checked> 合格したら自動で次へ</label>
+    </div>
 
     <div class="target">
       <div class="sol" id="sol">ミ</div>
@@ -129,11 +134,6 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
     <div class="hold" aria-hidden="true"><i id="holdBar"></i></div>
     <div class="flash" id="flash" aria-live="polite"></div>
 
-    <div class="row" id="quizBtns">
-      <button class="btn" id="nextBtn">次の音 <kbd>N</kbd></button>
-      <button class="btn" id="hintBtn">お手本を聴く <kbd>H</kbd></button>
-      <label class="status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="auto" checked> 合格したら自動で次へ</label>
-    </div>
 
     <div>
       <div class="label">主音からの位置</div>
