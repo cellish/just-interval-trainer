@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>耳のトレーニング</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#EEF1F4;--panel:#FFFFFF;--ink:#18202B;--muted:#5D6877;--line:#D3DAE2;--brass:#B07514;
+  --display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--bg:#12161C;--panel:#1B2129;--ink:#E7EBF0;--muted:#98A3B1;--line:#2E3742;--brass:#E2A63E;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.7}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:40px 56px;display:flex;flex-direction:column;gap:20px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,6vw,40px);margin:0;letter-spacing:.04em}
+.lead{color:var(--muted);margin:0;max-width:60ch}
+a.card{display:flex;flex-direction:column;gap:4px;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);text-decoration:none}
+a.card:hover,a.card:focus-visible{border-color:var(--brass);outline:none}
+a.card h2{font-family:var(--display);font-size:22px;margin:0;font-weight:600}
+a.card p{margin:0;color:var(--muted)}
+a.card span{font-size:13px;color:var(--brass);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>耳のトレーニング</h1>
+  <p class="lead">相対音感とハモリの感覚を育てるための、ブラウザで動く練習ページです。</p>
+  <a class="card" href="listening.html">
+    <h2>純正律：聴く特訓</h2>
+    <p>2つの音を同時に鳴らし、片方を少しずつ動かして唸りが消える純正音程を探します。</p>
+    <span>聴いて合わせる</span>
+  </a>
+  <a class="card" href="singing.html">
+    <h2>純正律：歌う特訓</h2>
+    <p>主音のドローンに合わせて指定の音を歌い、ずれをセント単位で表示します。マイクとヘッドホンを使います。</p>
+    <span>歌って合わせる</span>
+  </a>
+</div>
+</body>
+</html>

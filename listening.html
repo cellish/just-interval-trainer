@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>純正律：聴く特訓</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column like a tuning bench — interval picker, the tuning knob, then the verdict on a cents ruler. */
+:root{
+  --bg:#EEF1F4; --panel:#FFFFFF; --ink:#18202B; --muted:#5D6877; --line:#D3DAE2;
+  --brass:#B07514; --brass-soft:#F4E6CC; --just:#2F7A5B; --et:#7A5AA8;
+  --display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161C; --panel:#1B2129; --ink:#E7EBF0; --muted:#98A3B1; --line:#2E3742;
+  --brass:#E2A63E; --brass-soft:#3A2E18; --just:#5CC49A; --et:#B194E0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161C; --panel:#1B2129; --ink:#E7EBF0; --muted:#98A3B1; --line:#2E3742;
+  --brass:#E2A63E; --brass-soft:#3A2E18; --just:#5CC49A; --et:#B194E0; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:28px 48px;display:flex;flex-direction:column;gap:20px}
+header h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,6vw,40px);margin:0;letter-spacing:.04em;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:60ch}
+.label{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip small{font-family:var(--mono);opacity:.7;margin-left:4px}
+.bench{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:18px}
+.q{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+.q .big{font-family:var(--display);font-size:24px;font-weight:600}
+.q .meta{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:inherit;font-weight:500;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 14px;cursor:pointer}
+button.btn:hover{border-color:var(--muted)}
+button.primary{background:var(--brass);border-color:var(--brass);color:#fff;font-weight:700}
+:root[data-theme="dark"] button.primary{color:#1B1408}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) button.primary{color:#1B1408}}
+button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+.play{min-width:9em}
+.knob{display:flex;flex-direction:column;gap:10px}
+input[type=range]{width:100%;accent-color:var(--brass);height:28px}
+.nudges{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.nudges button{font-family:var(--mono);font-size:13px;padding:8px 0}
+.hintbox{border-top:1px dashed var(--line);padding-top:14px;display:flex;flex-direction:column;gap:8px}
+.hintbox label{display:flex;gap:8px;align-items:center;cursor:pointer;color:var(--muted);font-size:14px}
+canvas{width:100%;height:90px;display:block;border-radius:8px;background:var(--bg)}
+.beatnum{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.result{display:flex;flex-direction:column;gap:12px}
+.verdict{font-family:var(--display);font-size:22px;font-weight:600}
+.verdict .err{font-family:var(--mono);font-size:16px;color:var(--muted);margin-left:8px;font-weight:400}
+.ruler{overflow-x:auto}
+.ruler svg{width:100%;min-width:320px;height:auto;display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.note{color:var(--muted);font-size:14px;max-width:62ch;margin:0}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td.n{font-family:var(--mono);text-align:right}
+th.n{text-align:right}
+.hist{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:13px}
+.hist div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding-block:4px}
+.hist .empty{color:var(--muted);font-family:var(--body);border:0}
+section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:600}
+@media (max-width:480px){.nudges{grid-template-columns:repeat(4,1fr)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>html,body{margin:0}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>純正律：聴く特訓</h1>
+    <p>二つの音を同時に鳴らし、上の音を少しずつ動かして「ワンワン」という唸りが止まる点を探します。そこが純正の響きです。</p>
+  </header>
+
+  <div>
+    <div class="label">音程を選ぶ</div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div>
+    <div class="label">音域の広さ</div>
+    <div class="chips" id="octs">
+      <button class="chip" type="button" id="oct-0" aria-pressed="true">1オクターヴ以内</button>
+      <button class="chip" type="button" id="oct-1" aria-pressed="false">+1オクターヴ</button>
+      <button class="chip" type="button" id="oct-2" aria-pressed="false">+2オクターヴ</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">動かす音</div>
+    <div class="chips" id="modes">
+      <button class="chip" type="button" id="mode-upper" aria-pressed="true">上の音を動かす</button>
+      <button class="chip" type="button" id="mode-lower" aria-pressed="false">下の音を動かす</button>
+    </div>
+  </div>
+
+  <div class="bench">
+    <div class="q">
+      <div class="big" id="qname">長3度</div>
+      <div class="meta" id="qmeta"></div>
+    </div>
+
+    <div class="row">
+      <button class="btn primary play" id="play">▶ 鳴らす</button>
+      <button class="btn" id="newq">別の問題</button>
+    </div>
+    <div class="chips" id="voices" style="margin-top:-6px">
+      <button class="chip" type="button" id="voice-both" aria-pressed="true">2音</button>
+      <button class="chip" type="button" id="voice-ref" aria-pressed="false">基準音のみ</button>
+      <button class="chip" type="button" id="voice-move" aria-pressed="false">動かす音のみ</button>
+    </div>
+    <div class="row" style="margin-top:-6px"><span class="label">音色</span><div class="chips" id="tones" style="margin-top:0"></div></div>
+
+    <div class="knob">
+      <div class="label" id="knobLabel">上の音を調整</div>
+      <input type="range" id="slider" min="-40" max="40" step="0.1" value="0" aria-label="動かす音の高さ">
+      <div class="nudges" id="nudges"></div>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="submit">ここで決定</button>
+    </div>
+
+    <div class="hintbox">
+      <label><input type="checkbox" id="hint"> 唸りを波形で見る(ヒント)</label>
+      <div id="hintArea" hidden>
+        <canvas id="cv" width="680" height="90"></canvas>
+        <div class="beatnum" id="beatnum"></div>
+      </div>
+    </div>
+
+    <div class="result" id="result" hidden>
+      <div class="verdict" id="verdict"></div>
+      <div class="ruler"><svg id="ruler" viewBox="0 0 640 86" role="img" aria-label="セント目盛り上の位置"></svg></div>
+      <div class="legend">
+        <span><i style="background:var(--brass)"></i>あなた</span>
+        <span><i style="background:var(--just)"></i>純正</span>
+        <span><i style="background:var(--et)"></i>平均律</span>
+      </div>
+      <div class="row">
+        <button class="btn" id="hearJust">純正で聴く</button>
+        <button class="btn" id="hearEt">平均律で聴く</button>
+        <button class="btn" id="hearMine">自分の答えで聴く</button>
+        <button class="btn" id="retry">やり直し</button>
+        <button class="btn primary" id="next">次の問題</button>
+      </div>
+      <p class="note" id="explain"></p>
+    </div>
+  </div>
+
+  <section>
+    <h2>最近の記録</h2>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <section>
+    <h2>平均律と純正のずれ</h2>
+    <table>
+      <thead><tr><th>音程</th><th>比</th><th class="n">純正(cent)</th><th class="n">平均律との差</th></tr></thead>
+      <tbody id="tbl"></tbody>
+    </table>
+    <p class="note" style="margin-top:10px">差がマイナスなら、純正は平均律より低い位置にあります。長3度は約14セント低く取ると唸りが消えます。合唱で長3度を「少し低めに」と言われるのはこのためです。短7度は 9:5 で計算しています(16:9 とする流儀もあり、そちらは平均律より約4セント低い位置になります)。トライトーンは、唸りが実際に消える点として聴き取れる 7:5 を使っています。教科書的な 45:32 は倍音の重なりが高すぎて、唸りで合わせることができません。オクターヴを足しても、純正の位置のずれ方は同じです。</p>
+  </section>
+</div>
+
+<script>
+const INTERVALS=[
+  {id:'m2',name:'短2度',kind:'短',num:2,p:16,q:15,et:100},
+  {id:'M2',name:'長2度',sub:'大全音',kind:'長',num:2,p:9,q:8,et:200},
+  {id:'m3',name:'短3度',kind:'短',num:3,p:6,q:5,et:300},
+  {id:'M3',name:'長3度',kind:'長',num:3,p:5,q:4,et:400},
+  {id:'P4',name:'完全4度',kind:'完全',num:4,p:4,q:3,et:500},
+  {id:'TT',name:'トライトーン',sub:'増4度',kind:'増',num:4,p:7,q:5,et:600},
+  {id:'P5',name:'完全5度',kind:'完全',num:5,p:3,q:2,et:700},
+  {id:'m6',name:'短6度',kind:'短',num:6,p:8,q:5,et:800},
+  {id:'M6',name:'長6度',kind:'長',num:6,p:5,q:3,et:900},
+  {id:'m7',name:'短7度',kind:'短',num:7,p:9,q:5,et:1000},
+  {id:'M7',name:'長7度',kind:'長',num:7,p:15,q:8,et:1100},
+  {id:'P8',name:'オクターヴ',kind:'完全',num:8,p:2,q:1,et:1200},
+];
+INTERVALS.forEach(iv=>{iv.just=1200*Math.log2(iv.p/iv.q); iv.dev=iv.just-iv.et;});
+const gcd=(a,b)=>b?gcd(b,a%b):a;
+/* 選んだ音程にオクターヴを足した「実際に鳴らす音程」 */
+function derive(iv,k){
+  let p=iv.p*Math.pow(2,k), q=iv.q; const g=gcd(p,q); p/=g; q/=g;
+  const name=k===0?iv.name:`${iv.kind}${iv.num+7*k}度`;
+  const full=k===0?name:`${name}(${iv.name}+${k}オクターヴ)`;
+  return {name, full, p, q, et:iv.et+1200*k, dev:iv.dev};
+}
+const LOW_REFS=[{n:'G3',f:196.00},{n:'A3',f:220.00},{n:'B♭3',f:233.08},{n:'C4',f:261.63}];
+const HIGH_REFS=[{n:'E4',f:329.63},{n:'F4',f:349.23},{n:'G4',f:392.00},{n:'A4',f:440.00}];
+
+const $=id=>document.getElementById(id);
+let baseIv=INTERVALS[2], oct=0, cur=derive(baseIv,0), ref=LOW_REFS[1], mode='upper';
+let offset=0, startOffset=0, mine=0, answered=false, voice='both';
+let ctx=null, oscL=null, oscU=null, gL=null, gU=null, master=null, playing=false;
+
+/* 動かす音の「平均律の位置からのずれ」= offset(cent)。
+   上を動かす: 純正は +dev の位置。下を動かす: 純正は −dev の位置。 */
+const target=()=>mode==='upper'?cur.dev:-cur.dev;
+function freqs(o=offset){
+  if(mode==='upper') return {L:ref.f, U:ref.f*Math.pow(2,(cur.et+o)/1200)};
+  return {U:ref.f, L:ref.f*Math.pow(2,(-cur.et+o)/1200)};
+}
+
+/* ---------- UI build ---------- */
+const chips=$('chips');
+INTERVALS.forEach(iv=>{
+  const b=document.createElement('button');
+  b.className='chip'; b.type='button'; b.id='chip-'+iv.id;
+  b.innerHTML=`${iv.name}<small>${iv.p}:${iv.q}</small>`;
+  b.onclick=()=>{baseIv=iv; newQuestion();};
+  chips.appendChild(b);
+});
+[0,1,2].forEach(k=>{ $('oct-'+k).onclick=()=>{oct=k; newQuestion();}; });
+[-5,-1,-0.2,-0.1,0.1,0.2,1,5].forEach(d=>{
+  const b=document.createElement('button');
+  b.className='btn'; b.type='button';
+  b.textContent=(d>0?'+':'−')+Math.abs(d);
+  b.title=`${d>0?'上げる':'下げる'} ${Math.abs(d)} セント`;
+  b.onclick=()=>setOffset(offset+d);
+  $('nudges').appendChild(b);
+});
+['upper','lower'].forEach(m=>{
+  $('mode-'+m).onclick=()=>{mode=m; newQuestion();};
+});
+$('tbl').innerHTML=INTERVALS.map(iv=>`<tr><td>${iv.name}${iv.sub?'('+iv.sub+')':''}</td><td>${iv.p}:${iv.q}</td><td class="n">${iv.just.toFixed(1)}</td><td class="n">${iv.dev>0?'+':''}${iv.dev.toFixed(1)}</td></tr>`).join('');
+
+/* ---------- Audio ---------- */
+const VOL=0.11;
+/* 音色: 基本の倍音構成に加え、唸りを生む倍音(下の音のp倍音・上の音のq倍音)だけを
+   聞こえる大きさに持ち上げる。高い倍音を全部鳴らすより耳に優しく、唸りははっきり残る。 */
+const TONES={
+  organ:{label:'オルガン', base:n=>({1:1,2:.55,3:.32,4:.26,5:.1,6:.1,8:.09}[n]??(n<=12?.25/(n*n):0)), boost:.16},
+  soft: {label:'やわらか', base:n=>n<=6?Math.pow(n,-2.4):0, boost:.12},
+  // 明るい: 弦楽器に近い 1/n の倍音列。耳に刺さる 2.5〜5 kHz 付近は実際の周波数で緩やかに減衰させる
+  bright:{label:'明るい',   base:(n,hz)=>Math.pow(n,-1)*(n<=4?1.15:1)/(1+Math.pow(n*hz/2800,2.5)), boost:.14},
+};
+let tone='organ';
+try{const t=localStorage.getItem('unari-tone'); if(TONES[t]) tone=t;}catch(e){}
+function makeWave(role){
+  const N=64, real=new Float32Array(N+1), imag=new Float32Array(N+1), T=TONES[tone];
+  const f=freqs(), hz=role==='L'?f.L:f.U;
+  for(let n=1;n<=N;n++) imag[n]=T.base(n,hz);
+  const h=role==='L'?cur.p:cur.q;   // 唸りに関わる倍音
+  if(h<=N) imag[h]=Math.max(imag[h],T.boost);
+  return ctx.createPeriodicWave(real,imag);
+}
+// 鳴らす声部: both=2音 / ref=基準音のみ / move=動かす音のみ
+function voiceGains(){
+  const r=voice==='move'?0:VOL, m=voice==='ref'?0:VOL;
+  return mode==='upper'?{L:r,U:m}:{L:m,U:r};
+}
+let out=null, waveKey='';
+function buildOut(){
+  // 小さな部屋程度の残響(合成インパルス応答)
+  const len=Math.floor(ctx.sampleRate*1.4), ir=ctx.createBuffer(2,len,ctx.sampleRate);
+  for(let c=0;c<2;c++){const d=ir.getChannelData(c);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3.2);}
+  const conv=ctx.createConvolver(); conv.buffer=ir;
+  const wet=ctx.createGain(); wet.gain.value=.22;
+  const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=3;
+  const bus=ctx.createGain();
+  bus.connect(comp); bus.connect(conv); conv.connect(wet).connect(comp); comp.connect(ctx.destination);
+  out=bus;
+}
+function applyWaves(force){
+  const key=`${tone}|${cur.p}|${cur.q}|${mode}|${ref.f}`;
+  if(!force && key===waveKey) return;
+  waveKey=key; oscL.setPeriodicWave(makeWave('L')); oscU.setPeriodicWave(makeWave('U'));
+}
+function startAudio(){
+  if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)();
+  ctx.resume(); if(!out) buildOut();
+  const f=freqs(), vg=voiceGains();
+  master=ctx.createGain(); master.gain.value=0; master.connect(out);
+  const mk=(fr,vol,pan)=>{const o=ctx.createOscillator(); o.frequency.value=fr;
+    const g=ctx.createGain(); g.gain.value=vol;
+    const pn=ctx.createStereoPanner?ctx.createStereoPanner():null;
+    if(pn){pn.pan.value=pan; o.connect(g).connect(pn).connect(master);} else o.connect(g).connect(master);
+    o.start(); return [o,g];};
+  [oscL,gL]=mk(f.L,vg.L,-.12); [oscU,gU]=mk(f.U,vg.U,.12);
+  applyWaves(true);
+  master.gain.setTargetAtTime(1,ctx.currentTime,0.08);
+  playing=true; $('play').textContent='■ 止める';
+}
+function stopAudio(){
+  if(!playing) return;
+  const t=ctx.currentTime, m=master, a=oscL, b=oscU;
+  m.gain.setTargetAtTime(0,t,0.08);
+  setTimeout(()=>{try{a.stop();b.stop();m.disconnect();}catch(e){}},600);
+  playing=false; $('play').textContent='▶ 鳴らす';
+}
+function refreshAudio(){
+  if(!playing) return;
+  applyWaves(false);
+  const f=freqs(), vg=voiceGains(), t=ctx.currentTime;
+  oscL.frequency.setTargetAtTime(f.L,t,0.02);
+  oscU.frequency.setTargetAtTime(f.U,t,0.02);
+  gL.gain.setTargetAtTime(vg.L,t,0.03);
+  gU.gain.setTargetAtTime(vg.U,t,0.03);
+}
+Object.keys(TONES).forEach(k=>{
+  const b=document.createElement('button');
+  b.className='chip'; b.type='button'; b.id='tone-'+k; b.textContent=TONES[k].label;
+  b.setAttribute('aria-pressed',k===tone);
+  b.onclick=()=>{tone=k; try{localStorage.setItem('unari-tone',k);}catch(e){}
+    Object.keys(TONES).forEach(j=>$('tone-'+j).setAttribute('aria-pressed',j===tone));
+    refreshAudio();};
+  $('tones').appendChild(b);
+});
+$('play').onclick=()=>playing?stopAudio():startAudio();
+['both','ref','move'].forEach(v=>{
+  $('voice-'+v).onclick=()=>{
+    voice=v;
+    ['both','ref','move'].forEach(w=>$('voice-'+w).setAttribute('aria-pressed',w===voice));
+    refreshAudio(); updateBeat(); if(!playing) startAudio();
+  };
+});
+
+/* ---------- Game ---------- */
+function setOffset(v){
+  offset=Math.max(-40,Math.min(40,Math.round(v*10)/10));
+  $('slider').value=offset; refreshAudio(); updateBeat();
+}
+$('slider').addEventListener('input',e=>setOffset(parseFloat(e.target.value)));
+
+function noteLabel(){
+  const f=freqs(0);
+  return mode==='upper'
+    ? `基準音(下)${ref.n} ${ref.f.toFixed(1)} Hz・上の音を動かす・比 ${cur.p}:${cur.q}`
+    : `基準音(上)${ref.n} ${ref.f.toFixed(1)} Hz・下の音を動かす・比 ${cur.p}:${cur.q}`;
+}
+function newQuestion(){
+  cur=derive(baseIv,oct);
+  const pool=mode==='upper'?LOW_REFS:HIGH_REFS;
+  ref=pool[Math.floor(Math.random()*pool.length)];
+  // 下を動かす場合は、広い音程で下の音が低くなりすぎないよう基準音を上げる
+  if(mode==='lower'&&oct>0) ref={n:ref.n.replace(/\d/,d=>+d+oct), f:ref.f*Math.pow(2,oct)};
+  const away=(10+Math.random()*20)*(Math.random()<.5?-1:1);
+  startOffset=Math.max(-40,Math.min(40,target()+away));
+  INTERVALS.forEach(iv=>$('chip-'+iv.id).setAttribute('aria-pressed',iv===baseIv));
+  [0,1,2].forEach(k=>$('oct-'+k).setAttribute('aria-pressed',k===oct));
+  ['upper','lower'].forEach(m=>$('mode-'+m).setAttribute('aria-pressed',m===mode));
+  $('knobLabel').textContent=mode==='upper'?'上の音を調整':'下の音を調整';
+  $('qname').textContent=cur.full;
+  $('qmeta').textContent=noteLabel();
+  beginAttempt();
+}
+function beginAttempt(){
+  answered=false;
+  $('result').hidden=true; $('submit').disabled=false;
+  setOffset(startOffset);
+}
+$('newq').onclick=newQuestion;
+$('next').onclick=newQuestion;
+$('retry').onclick=beginAttempt;
+
+function verdictOf(e){
+  const a=Math.abs(e);
+  if(a<1) return 'ぴったり。唸りは消えています';
+  if(a<3) return 'かなり良い。ほぼ純正です';
+  if(a<6) return 'まずまず。ゆっくりした唸りが残っています';
+  return 'もう一歩。まだ唸りがはっきり聞こえる位置です';
+}
+$('submit').onclick=()=>{
+  answered=true; mine=offset; $('submit').disabled=true;
+  const err=offset-target();
+  $('verdict').innerHTML=`${verdictOf(err)}<span class="err">${err>0?'+':''}${err.toFixed(1)} cent</span>`;
+  drawRuler();
+  const which=mode==='upper'?'上の音':'下の音';
+  const t=target();
+  $('explain').textContent = Math.abs(t)<0.1
+    ? `${cur.name}は純正と平均律が一致します。`
+    : `${cur.name}の純正(${cur.p}:${cur.q})を作るには、${which}を平均律より ${Math.abs(t).toFixed(1)} セント${t<0?'低く':'高く'}取ります。「平均律で聴く」と比べると、平均律側に唸りが残っているのが分かります。`;
+  $('result').hidden=false;
+  saveHist({iv:cur.name,mode,ref:ref.n,err:+err.toFixed(1),t:Date.now()});
+};
+$('hearJust').onclick=()=>{setOffset(target()); if(!playing) startAudio();};
+$('hearEt').onclick=()=>{setOffset(0); if(!playing) startAudio();};
+$('hearMine').onclick=()=>{setOffset(mine); if(!playing) startAudio();};
+
+/* ---------- Ruler ---------- */
+function drawRuler(){
+  const W=640, L=30, R=610, lo=-40, hi=40;
+  const x=c=>L+(c-lo)/(hi-lo)*(R-L);
+  const t=target();
+  let s=`<line x1="${L}" y1="40" x2="${R}" y2="40" stroke="var(--line)" stroke-width="2"/>`;
+  for(let c=lo;c<=hi;c+=10){
+    s+=`<line x1="${x(c)}" y1="34" x2="${x(c)}" y2="46" stroke="var(--muted)"/>`+
+       `<text x="${x(c)}" y="64" text-anchor="middle" font-size="11" font-family="IBM Plex Mono,monospace" fill="var(--muted)">${c>0?'+':''}${c}</text>`;
+  }
+  const mark=(c,col,lab,y)=>`<circle cx="${x(c)}" cy="40" r="7" fill="${col}"/><text x="${x(c)}" y="${y}" text-anchor="middle" font-size="11" fill="${col}" font-family="Zen Kaku Gothic New,sans-serif">${lab}</text>`;
+  const close=Math.abs(t)<4;
+  s+=mark(0,'var(--et)','平均律',20);
+  s+=mark(t,'var(--just)','純正',close?82:20);
+  s+=`<circle cx="${x(mine)}" cy="40" r="5" fill="var(--brass)" stroke="var(--panel)" stroke-width="2"/>`;
+  if(!close) s+=`<text x="${W/2}" y="82" text-anchor="middle" font-size="10" fill="var(--muted)">${mode==='upper'?'上':'下'}の音の平均律からのずれ(cent)</text>`;
+  $('ruler').innerHTML=s;
+}
+
+/* ---------- Hint: beat envelope ---------- */
+function beatHz(){const f=freqs(); return Math.abs(cur.q*f.U-cur.p*f.L);}
+function updateBeat(){
+  const b=beatHz();
+  $('beatnum').textContent=voice!=='both'
+    ? `${voice==='ref'?'基準音':'動かす音'}だけを鳴らしています(唸りはありません)`
+    : `唸りの速さ 約 ${b<0.05?'0.0':b.toFixed(2)} 回/秒(下の音の${cur.p}倍音と上の音の${cur.q}倍音の干渉)`;
+}
+$('hint').onchange=e=>{$('hintArea').hidden=!e.target.checked; if(e.target.checked) loop();};
+const cv=$('cv'), g2=cv.getContext('2d');
+function loop(){
+  if($('hintArea').hidden) return;
+  updateBeat();
+  const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  if(cv.width!==w*dpr){cv.width=w*dpr; cv.height=h*dpr;}
+  g2.setTransform(dpr,0,0,dpr,0,0); g2.clearRect(0,0,w,h);
+  const col=getComputedStyle(document.documentElement).getPropertyValue('--brass').trim();
+  const solo=voice!=='both', b=solo?0:beatHz(), now=performance.now()/1000, span=4;
+  g2.strokeStyle=col; g2.lineWidth=1.5; g2.beginPath();
+  for(let i=0;i<=w;i++){
+    const t=now-span+i/w*span;
+    const env=solo?0.5:Math.abs(Math.cos(Math.PI*b*t));
+    const y=h/2-env*(h/2-8)*Math.sin(i*0.9);
+    i?g2.lineTo(i,y):g2.moveTo(i,y);
+  }
+  g2.stroke();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- History ---------- */
+const KEY='unari-history';
+function loadHist(){try{return JSON.parse(localStorage.getItem(KEY)||'[]');}catch(e){return [];}}
+let hist=loadHist();
+function saveHist(r){hist.unshift(r); hist=hist.slice(0,15); try{localStorage.setItem(KEY,JSON.stringify(hist));}catch(e){} renderHist();}
+function renderHist(){
+  const el=$('hist');
+  if(!hist.length){el.innerHTML='<div class="empty">まだ記録はありません。決定するとここに誤差が残ります。</div>';return;}
+  const avg=hist.reduce((a,r)=>a+Math.abs(r.err),0)/hist.length;
+  el.innerHTML=`<div><span>直近${hist.length}回の平均誤差</span><span>${avg.toFixed(1)} cent</span></div>`+
+    hist.map(r=>`<div><span>${r.iv}・${r.mode==='lower'?'下':'上'}を動かす(${r.ref||r.base})</span><span>${r.err>0?'+':''}${r.err.toFixed(1)}</span></div>`).join('');
+}
+
+renderHist(); newQuestion();
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'&&e.target.type==='range') return;
+  if(e.key==='ArrowRight') setOffset(offset+(e.shiftKey?0.2:1));
+  if(e.key==='ArrowLeft') setOffset(offset-(e.shiftKey?0.2:1));
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>純正律：歌う特訓</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: settings strip, then the singing bench — target syllable, cents meter, scale ladder, pitch trace — then per-degree record. */
+:root{
+  --bg:#EEF1F4; --panel:#FFFFFF; --ink:#18202B; --muted:#5D6877; --line:#D3DAE2;
+  --brass:#B07514; --brass-soft:#F4E6CC; --good:#2F7A5B; --warn:#B8860B; --bad:#B4483C;
+  --display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#12161C; --panel:#1B2129; --ink:#E7EBF0; --muted:#98A3B1; --line:#2E3742;
+  --brass:#E2A63E; --brass-soft:#3A2E18; --good:#5CC49A; --warn:#E0B44A; --bad:#E07A6C; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:28px 48px;display:flex;flex-direction:column;gap:20px}
+header h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,6vw,40px);margin:0;letter-spacing:.04em}
+header p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.label{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:700}
+.settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:4px}
+select,input[type=range]{font:inherit;width:100%}
+select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+input[type=range]{accent-color:var(--brass)}
+.bench{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:18px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:inherit;font-weight:500;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 14px;cursor:pointer}
+button.btn:hover{border-color:var(--muted)}
+button.primary{background:var(--brass);border-color:var(--brass);color:#fff;font-weight:700}
+@media (prefers-color-scheme: dark){button.primary{color:#1B1408}}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.status{font-size:13px;color:var(--muted)}
+.status.err{color:var(--bad)}
+.target{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.sol{font-family:var(--display);font-weight:800;font-size:72px;line-height:1;min-width:2.2em}
+.sol.free{color:var(--muted)}
+.tmeta{display:flex;flex-direction:column;gap:2px;padding-bottom:6px}
+.tmeta .deg{font-size:18px;font-weight:700}
+.tmeta .ratio{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.readout{margin-left:auto;text-align:right;font-family:var(--mono);padding-bottom:6px}
+.readout .c{font-size:32px;font-weight:500;line-height:1}
+.readout .hz{font-size:13px;color:var(--muted)}
+.meter{position:relative;height:44px;border-radius:10px;background:var(--bg);border:1px solid var(--line);overflow:hidden}
+.meter .zone{position:absolute;top:0;bottom:0}
+.meter .mid{position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--ink);opacity:.5;transform:translateX(-1px)}
+.meter .needle{position:absolute;top:4px;bottom:4px;width:6px;border-radius:3px;background:var(--brass);transform:translateX(-3px);transition:left .06s linear}
+.meter .needle[hidden]{display:none}
+.scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+.hold{height:6px;border-radius:3px;background:var(--bg);overflow:hidden}
+.hold i{display:block;height:100%;width:0;background:var(--good)}
+.ladder{position:relative;height:64px;margin-inline:10px}
+.ladder .track{position:absolute;left:0;right:0;top:30px;height:2px;background:var(--line)}
+.ladder .tick{position:absolute;top:18px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;font-size:12px;color:var(--muted)}
+.ladder .tick b{display:block;width:2px;height:26px;background:var(--muted);opacity:.6}
+.ladder .tick span{margin-top:2px;white-space:nowrap}
+.ladder .tick.on{color:var(--brass);font-weight:700}
+.ladder .tick.on b{background:var(--brass);opacity:1;width:3px}
+.ladder .voice{position:absolute;top:22px;width:16px;height:16px;border-radius:50%;background:var(--brass);border:3px solid var(--panel);transform:translateX(-50%);box-shadow:0 0 0 1px var(--brass)}
+canvas{width:100%;height:140px;display:block;border-radius:8px;background:var(--bg)}
+.flash{font-family:var(--display);font-size:20px;font-weight:600;min-height:1.6em}
+.flash.ok{color:var(--good)}
+section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td.n,th.n{text-align:right;font-family:var(--mono)}
+.tablewrap{overflow-x:auto}
+.note{color:var(--muted);font-size:14px;max-width:64ch;margin:0}
+kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+@media (max-width:480px){.sol{font-size:56px}.readout{margin-left:0;text-align:left}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>純正律：歌う特訓</h1>
+    <p>主音のドローンを鳴らしたまま、指定された音を歌います。声の高さをマイクで測り、ドローンに対して何セントずれているかを表示します。オクターヴはどこで歌っても構いません。</p>
+  </header>
+
+  <div class="settings">
+    <div class="field"><label class="label" for="key">主音</label><select id="key"></select></div>
+    <div class="field"><label class="label" for="reg">声域</label>
+      <select id="reg"><option value="low">低い声(主音 C3 付近)</option><option value="high" selected>高い声(主音 C4 付近)</option></select></div>
+    <div class="field"><label class="label" for="set">出題範囲</label>
+      <select id="set"><option value="major">長音階</option><option value="minor">短音階(自然)</option><option value="chrom">半音階すべて</option></select></div>
+    <div class="field"><label class="label" for="tuning">目標の音律</label>
+      <select id="tuning"><option value="just">純正(ドローンに溶ける)</option><option value="pyth">ピタゴラス(5度の積み重ね)</option><option value="et">平均律(ピアノと同じ)</option></select></div>
+    <div class="field"><label class="label" for="tol">合格の幅</label>
+      <select id="tol"><option value="20">±20 セント(入門)</option><option value="10" selected>±10 セント</option><option value="5">±5 セント(上級)</option></select></div>
+    <div class="field"><label class="label" for="dronemode">ドローン</label>
+      <select id="dronemode"><option value="root">主音のみ</option><option value="fifth">主音+5度</option></select></div>
+    <div class="field"><label class="label" for="vol">ドローン音量</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></div>
+  </div>
+
+  <div class="bench">
+    <div class="row">
+      <button class="btn primary" id="micBtn">マイクを開始</button>
+      <button class="btn" id="droneBtn">▶ ドローン</button>
+      <div class="chips" role="group" aria-label="練習モード">
+        <button class="chip" type="button" id="mode-quiz" aria-pressed="true">出題</button>
+        <button class="chip" type="button" id="mode-free" aria-pressed="false">自由に歌う</button>
+      </div>
+    </div>
+    <div class="status" id="status">ヘッドホンの使用をおすすめします。スピーカーから出たドローンをマイクが拾うと、測定が乱れます。</div>
+
+    <div class="target">
+      <div class="sol" id="sol">ミ</div>
+      <div class="tmeta"><div class="deg" id="deg">第3音・長3度</div><div class="ratio" id="ratio">5:4 / 386.3 cent</div></div>
+      <div class="readout"><div class="c" id="cents">—</div><div class="hz" id="hz">声を待っています</div></div>
+    </div>
+
+    <div>
+      <div class="meter" id="meter"><div class="zone" id="zoneWarn"></div><div class="zone" id="zoneGood"></div><div class="mid"></div><div class="needle" id="needle" hidden></div></div>
+      <div class="scale"><span>−50</span><span>−25</span><span>0</span><span>+25</span><span>+50</span></div>
+    </div>
+    <div class="hold" aria-hidden="true"><i id="holdBar"></i></div>
+    <div class="flash" id="flash" aria-live="polite"></div>
+
+    <div class="row" id="quizBtns">
+      <button class="btn" id="nextBtn">次の音 <kbd>N</kbd></button>
+      <button class="btn" id="hintBtn">お手本を聴く <kbd>H</kbd></button>
+      <label class="status" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="auto" checked> 合格したら自動で次へ</label>
+    </div>
+
+    <div>
+      <div class="label">主音からの位置</div>
+      <div class="ladder" id="ladder"><div class="track"></div></div>
+    </div>
+
+    <div>
+      <div class="label">ずれの推移(直近6秒)</div>
+      <canvas id="trace" width="700" height="140"></canvas>
+    </div>
+  </div>
+
+  <section>
+    <h2>音ごとの記録</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>音</th><th class="n">合格回数</th><th class="n">平均のずれ</th><th class="n">傾向</th></tr></thead>
+      <tbody id="stats"></tbody>
+    </table></div>
+    <div class="row" style="margin-top:8px"><button class="btn" id="resetStats">記録を消す</button><span class="status" id="resetMsg"></span></div>
+  </section>
+
+  <section>
+    <h2>使い方のこつ</h2>
+    <p class="note">まずドローンだけを鳴らし、主音(ド)を歌って耳を慣らしてから出題に進むと安定します。純正で合わせると、正しい位置で声がドローンに溶け込み、うなりが消えた感じになります。ピタゴラス音律は5度だけを積み重ねて作る音律で、3度と6度が純正よりかなり広く(長3度で約22セント高く)なります。旋律を歌うときは、導音(シ)が主音に強く引き寄せられる感じが出ます。メーターを見続けるより、目を閉じて合わせてから確認するほうが耳が育ちます。マイクが使えない場合は、ブラウザのアドレスバーのマイク許可を確認してください。</p>
+  </section>
+</div>
+
+<script>
+const KEYS=['C','C♯/D♭','D','E♭','E','F','F♯/G♭','G','A♭','A','B♭','B'];
+const DEGREES=[
+  {s:0, sol:'ド',  deg:'第1音',  name:'主音',    p:1, q:1},
+  {s:1, sol:'レ♭', deg:'♭2',    name:'短2度',   p:16,q:15},
+  {s:2, sol:'レ',  deg:'第2音',  name:'長2度',   p:9, q:8},
+  {s:3, sol:'ミ♭', deg:'♭3',    name:'短3度',   p:6, q:5},
+  {s:4, sol:'ミ',  deg:'第3音',  name:'長3度',   p:5, q:4},
+  {s:5, sol:'ファ',deg:'第4音',  name:'完全4度', p:4, q:3},
+  {s:6, sol:'ファ♯',deg:'♯4',   name:'増4度',   p:7, q:5},
+  {s:7, sol:'ソ',  deg:'第5音',  name:'完全5度', p:3, q:2},
+  {s:8, sol:'ラ♭', deg:'♭6',    name:'短6度',   p:8, q:5},
+  {s:9, sol:'ラ',  deg:'第6音',  name:'長6度',   p:5, q:3},
+  {s:10,sol:'シ♭', deg:'♭7',    name:'短7度',   p:9, q:5},
+  {s:11,sol:'シ',  deg:'第7音',  name:'長7度',   p:15,q:8},
+];
+// ピタゴラス音律(5度 3:2 の積み重ねだけで作る比)
+const PYTH=[[1,1],[256,243],[9,8],[32,27],[81,64],[4,3],[729,512],[3,2],[128,81],[27,16],[16,9],[243,128]];
+DEGREES.forEach(d=>{d.just=1200*Math.log2(d.p/d.q); d.et=d.s*100;
+  [d.pp,d.pq]=PYTH[d.s]; d.pyth=1200*Math.log2(d.pp/d.pq);});
+const SETS={major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10], chrom:[0,1,2,3,4,5,6,7,8,9,10,11]};
+
+const $=id=>document.getElementById(id);
+const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true};
+try{Object.assign(S,JSON.parse(localStorage.getItem('drone-settings')||'{}'));}catch(e){}
+function saveSettings(){try{localStorage.setItem('drone-settings',JSON.stringify(S));}catch(e){}}
+
+KEYS.forEach((k,i)=>{const o=document.createElement('option'); o.value=i; o.textContent=k; $('key').appendChild(o);});
+const bind=(id,prop,conv=v=>v,after)=>{const el=$(id); el.value=S[prop];
+  el.addEventListener('change',()=>{S[prop]=conv(el.value); saveSettings(); after&&after();});};
+bind('key','key',Number,()=>{refreshDrone(); buildLadder();});
+bind('reg','reg',v=>v,refreshDrone);
+bind('set','set',v=>v,()=>{buildLadder(); renderStats(); nextTarget();});
+bind('tuning','tuning',v=>v,()=>{buildLadder(); showTarget();});
+bind('tol','tol',Number,drawZones);
+bind('dronemode','droneMode',v=>v,refreshDrone);
+$('vol').value=S.vol; $('vol').addEventListener('input',e=>{S.vol=+e.target.value; saveSettings(); if(droneGain) droneGain.gain.setTargetAtTime(S.vol,ctx.currentTime,.05);});
+$('auto').checked=S.auto; $('auto').onchange=e=>{S.auto=e.target.checked; saveSettings();};
+
+const tonicHz=()=>(S.reg==='low'?130.81:261.63)*Math.pow(2,S.key/12);
+const targetCents=d=>S.tuning==='just'?d.just:S.tuning==='pyth'?d.pyth:d.et;
+const wrap=c=>((c%1200)+1200+600)%1200-600;
+
+/* ---------- Audio out: drone + hint ---------- */
+let ctx=null, out=null, droneGain=null, droneOscs=[], droneOn=false;
+function ensureCtx(){
+  if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const len=Math.floor(ctx.sampleRate*1.4), ir=ctx.createBuffer(2,len,ctx.sampleRate);
+    for(let c=0;c<2;c++){const d=ir.getChannelData(c); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3.2);}
+    const conv=ctx.createConvolver(); conv.buffer=ir; const wet=ctx.createGain(); wet.gain.value=.22;
+    const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-14; comp.ratio.value=3;
+    out=ctx.createGain(); out.connect(comp); out.connect(conv); conv.connect(wet).connect(comp); comp.connect(ctx.destination);
+  }
+  ctx.resume(); return ctx;
+}
+function organWave(){
+  const N=16, re=new Float32Array(N+1), im=new Float32Array(N+1);
+  const a={1:1,2:.55,3:.32,4:.26,5:.1,6:.1,8:.09};
+  for(let n=1;n<=N;n++) im[n]=a[n]??(n<=12?.25/(n*n):0);
+  return ctx.createPeriodicWave(re,im);
+}
+function droneVoices(){
+  const t=tonicHz(), v=[{f:t,g:.10},{f:t/2,g:.07}];
+  if(S.droneMode==='fifth') v.push({f:t*1.5,g:.06});
+  return v;
+}
+function startDrone(){
+  ensureCtx(); stopDrone(true);
+  droneGain=ctx.createGain(); droneGain.gain.value=0; droneGain.connect(out);
+  const w=organWave();
+  droneOscs=droneVoices().map(v=>{const o=ctx.createOscillator(); o.setPeriodicWave(w); o.frequency.value=v.f;
+    const g=ctx.createGain(); g.gain.value=v.g; o.connect(g).connect(droneGain); o.start(); return o;});
+  droneGain.gain.setTargetAtTime(S.vol,ctx.currentTime,.1);
+  droneOn=true; $('droneBtn').textContent='■ ドローン';
+}
+function stopDrone(quick){
+  if(!droneGain) return;
+  const g=droneGain, os=droneOscs; g.gain.setTargetAtTime(0,ctx.currentTime,quick?.02:.1);
+  setTimeout(()=>{os.forEach(o=>{try{o.stop();}catch(e){}}); g.disconnect();},quick?100:700);
+  droneGain=null; droneOscs=[]; droneOn=false; $('droneBtn').textContent='▶ ドローン';
+}
+function refreshDrone(){ if(droneOn) startDrone(); }
+$('droneBtn').onclick=()=>droneOn?stopDrone():startDrone();
+
+function playHint(){
+  if(!target) return; ensureCtx();
+  const f=tonicHz()*Math.pow(2,targetCents(target)/1200);
+  const g=ctx.createGain(), o=ctx.createOscillator(), t=ctx.currentTime;
+  o.setPeriodicWave(organWave()); o.frequency.value=f;
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.12,t+.06); g.gain.setValueAtTime(.12,t+1.1); g.gain.linearRampToValueAtTime(0,t+1.4);
+  o.connect(g).connect(out); o.start(t); o.stop(t+1.5);
+}
+$('hintBtn').onclick=playHint;
+
+/* ---------- Mic + pitch detection (YIN) ---------- */
+let analyser=null, buf=null, yinBuf=null, micOn=false;
+async function startMic(){
+  ensureCtx();
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    setStatus('このブラウザではマイクが使えません。Chrome か Edge で開いてください。',true); return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:false,autoGainControl:false}});
+    const src=ctx.createMediaStreamSource(stream);
+    analyser=ctx.createAnalyser(); analyser.fftSize=2048; src.connect(analyser);
+    buf=new Float32Array(analyser.fftSize); yinBuf=new Float32Array(1024);
+    micOn=true; $('micBtn').textContent='マイク作動中'; $('micBtn').disabled=true;
+    setStatus('マイクを使っています。指定の音を伸ばして歌ってください。');
+    requestAnimationFrame(loop);
+  }catch(e){
+    setStatus('マイクを開けませんでした。アドレスバーのマイク許可を確認してから、もう一度押してください。',true);
+  }
+}
+$('micBtn').onclick=startMic;
+function setStatus(t,err){const s=$('status'); s.textContent=t; s.classList.toggle('err',!!err);}
+
+function detect(){
+  analyser.getFloatTimeDomainData(buf);
+  const sr=ctx.sampleRate, W=1024;
+  let rms=0; for(let i=0;i<W;i++) rms+=buf[i]*buf[i]; rms=Math.sqrt(rms/W);
+  if(rms<0.008) return null;
+  const minT=Math.floor(sr/1100), maxT=Math.min(Math.floor(sr/65),buf.length-W-1,yinBuf.length-1);
+  yinBuf[0]=1; let run=0;
+  for(let t=1;t<=maxT;t++){
+    let s=0; for(let i=0;i<W;i++){const d=buf[i]-buf[i+t]; s+=d*d;}
+    run+=s; yinBuf[t]=run?s*t/run:1;
+  }
+  let tau=-1;
+  for(let t=minT;t<=maxT;t++){
+    if(yinBuf[t]<0.12){ while(t+1<=maxT&&yinBuf[t+1]<yinBuf[t]) t++; tau=t; break; }
+  }
+  if(tau<0) return null;
+  const a=yinBuf[tau-1], b=yinBuf[tau], c=yinBuf[tau+1]??b;
+  const den=a-2*b+c, shift=den?(a-c)/(2*den):0;
+  return sr/(tau+shift);
+}
+const recent=[];
+function smoothed(f){
+  if(f==null){recent.length=0; return null;}
+  if(recent.length&&Math.abs(1200*Math.log2(f/recent[recent.length-1]))>80) recent.length=0;
+  recent.push(f); if(recent.length>5) recent.shift();
+  const s=[...recent].sort((x,y)=>x-y); return s[Math.floor(s.length/2)];
+}
+
+/* ---------- Targets ---------- */
+let target=null, lastS=-1;
+function nextTarget(){
+  const pool=SETS[S.set].filter(s=>s!==lastS);
+  const s=pool[Math.floor(Math.random()*pool.length)]; lastS=s;
+  target=DEGREES[s]; resetHold(); $('flash').textContent=''; $('flash').className='flash';
+  showTarget(); buildLadder();
+}
+function showTarget(){
+  const free=S.mode==='free';
+  $('sol').classList.toggle('free',free);
+  if(free){ $('sol').textContent='—'; $('deg').textContent='自由に歌う'; $('ratio').textContent='いちばん近い音とのずれを表示します'; return; }
+  const d=target;
+  $('sol').textContent=d.sol;
+  $('deg').textContent=`${d.deg}・${d.name}`;
+  const diff=c=>{const x=c-d.just; return `純正との差 ${x>0?'+':''}${x.toFixed(1)}`;};
+  $('ratio').textContent=
+    S.tuning==='just' ? `純正 ${d.p}:${d.q} / ${d.just.toFixed(1)} cent`
+    : S.tuning==='pyth' ? `ピタゴラス ${d.pp}:${d.pq} / ${d.pyth.toFixed(1)} cent(${diff(d.pyth)})`
+    : `平均律 ${d.et} cent(${diff(d.et)})`;
+}
+$('nextBtn').onclick=nextTarget;
+['quiz','free'].forEach(m=>$('mode-'+m).onclick=()=>{
+  S.mode=m; saveSettings();
+  ['quiz','free'].forEach(n=>$('mode-'+n).setAttribute('aria-pressed',n===m));
+  $('quizBtns').hidden=m==='free'; resetHold(); $('flash').textContent=''; showTarget(); buildLadder();
+});
+
+/* ---------- Ladder ---------- */
+function buildLadder(){
+  const L=$('ladder'); L.querySelectorAll('.tick,.voice').forEach(e=>e.remove());
+  const set=SETS[S.set];
+  [...set,12].forEach(s=>{
+    const d=DEGREES[s%12], c=s===12?1200:targetCents(d);
+    const t=document.createElement('div'); t.className='tick';
+    if(S.mode==='quiz'&&target&&target.s===s%12) t.classList.add('on');
+    t.style.left=(c/1200*100)+'%'; t.innerHTML=`<b></b><span>${d.sol}</span>`; L.appendChild(t);
+  });
+  const v=document.createElement('div'); v.className='voice'; v.id='voice'; v.hidden=true; L.appendChild(v);
+}
+
+/* ---------- Meter ---------- */
+function drawZones(){
+  const pct=c=>50+c; // ±50 cent -> 0..100%
+  const g=$('zoneGood'), w=$('zoneWarn');
+  g.style.left=pct(-S.tol)+'%'; g.style.width=(2*S.tol)+'%'; g.style.background='color-mix(in srgb, var(--good) 28%, transparent)';
+  const wt=Math.min(50,S.tol*2);
+  w.style.left=pct(-wt)+'%'; w.style.width=(2*wt)+'%'; w.style.background='color-mix(in srgb, var(--warn) 18%, transparent)';
+}
+
+/* ---------- Hold-to-pass ---------- */
+const HOLD=1200, GAP=180;
+let holdStart=0, lastIn=0, holdDevs=[], locked=false;
+function resetHold(){holdStart=0; holdDevs=[]; $('holdBar').style.width='0';}
+
+/* ---------- Trace ---------- */
+const trace=[]; const cv=$('trace'), g2=cv.getContext('2d');
+function drawTrace(now){
+  while(trace.length&&now-trace[0].t>6000) trace.shift();
+  const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);}
+  g2.setTransform(dpr,0,0,dpr,0,0); g2.clearRect(0,0,w,h);
+  const cs=getComputedStyle(document.documentElement), col=n=>cs.getPropertyValue(n).trim();
+  const y=c=>h/2-c/60*(h/2-6);
+  g2.fillStyle=col('--good'); g2.globalAlpha=.15; g2.fillRect(0,y(S.tol),w,y(-S.tol)-y(S.tol)); g2.globalAlpha=1;
+  g2.strokeStyle=col('--line'); g2.lineWidth=1;
+  [-50,-25,0,25,50].forEach(c=>{g2.beginPath(); g2.moveTo(0,y(c)); g2.lineTo(w,y(c)); g2.stroke();});
+  g2.fillStyle=col('--muted'); g2.font='10px "IBM Plex Mono",monospace';
+  [-50,0,50].forEach(c=>g2.fillText((c>0?'+':'')+c,4,y(c)-3));
+  g2.strokeStyle=col('--brass'); g2.lineWidth=2; g2.beginPath(); let pen=false;
+  for(let i=0;i<trace.length;i++){
+    const p=trace[i], x=w-(now-p.t)/6000*w;
+    if(p.c==null){pen=false; continue;}
+    const yy=y(Math.max(-60,Math.min(60,p.c)));
+    if(pen&&now-trace[i-1].t<GAP) g2.lineTo(x,yy); else g2.moveTo(x,yy); pen=true;
+  }
+  g2.stroke();
+}
+
+/* ---------- Main loop ---------- */
+function nearestDegree(cFromTonic){
+  let best=null, bd=1e9;
+  SETS[S.set].forEach(s=>{const d=DEGREES[s], dv=wrap(cFromTonic-targetCents(d)); if(Math.abs(dv)<Math.abs(bd)){bd=dv; best=d;}});
+  return {d:best, dev:bd};
+}
+function loop(){
+  const now=performance.now();
+  const f=smoothed(detect());
+  let dev=null;
+  const voice=$('voice');
+  if(f){
+    const fromTonic=1200*Math.log2(f/tonicHz());
+    const pos=((fromTonic%1200)+1200)%1200;
+    voice.hidden=false; voice.style.left=(pos/1200*100)+'%';
+    if(S.mode==='free'){ const n=nearestDegree(fromTonic); dev=n.dev; $('sol').textContent=n.d.sol; $('deg').textContent=`${n.d.deg}・${n.d.name}`; }
+    else dev=wrap(fromTonic-targetCents(target));
+    const midi=69+12*Math.log2(f/440), nm=Math.round(midi);
+    const names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+    $('hz').textContent=`${f.toFixed(1)} Hz(${names[(nm%12+12)%12]}${Math.floor(nm/12)-1})`;
+    $('cents').textContent=(dev>0?'+':dev<0?'−':'±')+Math.abs(dev).toFixed(1);
+    const cl=Math.abs(dev)<=S.tol?'var(--good)':Math.abs(dev)<=S.tol*2?'var(--warn)':'var(--bad)';
+    $('cents').style.color=cl;
+    const nd=$('needle'); nd.hidden=false; nd.style.left=(50+Math.max(-50,Math.min(50,dev)))+'%'; nd.style.background=cl;
+  }else{
+    voice.hidden=true; $('needle').hidden=true; $('cents').textContent='—'; $('cents').style.color=''; $('hz').textContent='声を待っています';
+  }
+  trace.push({t:now,c:dev});
+  drawTrace(now);
+
+  if(S.mode==='quiz'&&!locked){
+    if(dev!=null&&Math.abs(dev)<=S.tol){
+      if(!holdStart) holdStart=now; lastIn=now; holdDevs.push(dev);
+      const p=Math.min(1,(now-holdStart)/HOLD); $('holdBar').style.width=(p*100)+'%';
+      if(p>=1) pass();
+    }else if(holdStart&&now-lastIn>GAP) resetHold();
+  }
+  requestAnimationFrame(loop);
+}
+function pass(){
+  const avg=holdDevs.reduce((a,b)=>a+b,0)/holdDevs.length;
+  addStat(target.s,avg);
+  $('flash').className='flash ok';
+  $('flash').textContent=`合格 ${target.sol}  平均 ${avg>0?'+':''}${avg.toFixed(1)} セント`;
+  locked=true;
+  setTimeout(()=>{locked=false; if(S.auto&&S.mode==='quiz') nextTarget(); else resetHold();},S.auto?900:600);
+}
+
+/* ---------- Stats ---------- */
+let stats={};
+try{stats=JSON.parse(localStorage.getItem('drone-stats')||'{}');}catch(e){}
+function addStat(s,avg){
+  const k=S.tuning+':'+s, r=stats[k]||{n:0,sum:0,abs:0};
+  r.n++; r.sum+=avg; r.abs+=Math.abs(avg); stats[k]=r;
+  try{localStorage.setItem('drone-stats',JSON.stringify(stats));}catch(e){}
+  renderStats();
+}
+function renderStats(){
+  $('stats').innerHTML=SETS[S.set].map(s=>{
+    const d=DEGREES[s], r=stats[S.tuning+':'+s];
+    if(!r) return `<tr><td>${d.sol}(${d.name})</td><td class="n">0</td><td class="n">—</td><td class="n">—</td></tr>`;
+    const bias=r.sum/r.n;
+    const tend=Math.abs(bias)<1.5?'ほぼ中心':bias>0?'高め':'低め';
+    return `<tr><td>${d.sol}(${d.name})</td><td class="n">${r.n}</td><td class="n">${(r.abs/r.n).toFixed(1)}</td><td class="n">${tend} ${bias>0?'+':''}${bias.toFixed(1)}</td></tr>`;
+  }).join('');
+}
+$('resetStats').onclick=()=>{
+  if($('resetStats').dataset.confirm){stats={}; try{localStorage.removeItem('drone-stats');}catch(e){} renderStats();
+    $('resetMsg').textContent='記録を消しました'; delete $('resetStats').dataset.confirm; $('resetStats').textContent='記録を消す'; return;}
+  $('resetStats').dataset.confirm='1'; $('resetStats').textContent='本当に消す'; $('resetMsg').textContent='もう一度押すと消えます';
+};
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return;
+  if(e.key==='n'||e.key==='N') nextTarget();
+  if(e.key==='h'||e.key==='H') playHint();
+});
+
+/* ---------- Init ---------- */
+['quiz','free'].forEach(n=>$('mode-'+n).setAttribute('aria-pressed',n===S.mode));
+$('quizBtns').hidden=S.mode==='free';
+drawZones(); nextTarget(); renderStats(); drawTrace(performance.now());
+</script>
+</body>
+</html>
