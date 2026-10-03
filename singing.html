@@ -378,7 +378,7 @@ function drawTrace(now){
     const p=trace[i], x=w-(now-p.t)/6000*w;
     if(p.c==null){pen=false; continue;}
     const yy=y(Math.max(-60,Math.min(60,p.c)));
-    if(pen&&now-trace[i-1].t<GAP) g2.lineTo(x,yy); else g2.moveTo(x,yy); pen=true;
+    if(pen&&p.t-trace[i-1].t<GAP) g2.lineTo(x,yy); else g2.moveTo(x,yy); pen=true;
   }
   g2.stroke();
 }
