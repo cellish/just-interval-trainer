@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>純正律：聴く特訓</title>
+<title>ハモリ道場：聴く</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -25,6 +25,7 @@
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7}
 .wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:28px 48px;display:flex;flex-direction:column;gap:20px}
 header h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,6vw,40px);margin:0;letter-spacing:.04em;text-wrap:balance}
+header .en{font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--muted);margin-top:2px}
 header p{margin:4px 0 0;color:var(--muted);max-width:60ch}
 .label{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
@@ -68,6 +69,14 @@ th.n{text-align:right}
 .hist div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding-block:4px}
 .hist .empty{color:var(--muted);font-family:var(--body);border:0}
 section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:600}
+
+.pitchbox{display:flex;flex-direction:column;gap:6px}
+.pitchrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pitchrow input{font:inherit;font-family:var(--mono);width:6.5em;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);text-align:right}
+.pitchrow .hzunit{font-family:var(--mono);color:var(--muted);margin-left:-4px}
+.pitchrow button.btn{padding:6px 12px;font-family:var(--mono)}
+.pitchrow .chips{margin-top:0}
+.pitchrow .chip small{font-family:var(--body)}
 @media (max-width:480px){.nudges{grid-template-columns:repeat(4,1fr)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -77,9 +86,22 @@ section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:
 
 <div class="wrap">
   <header>
-    <h1>純正律：聴く特訓</h1>
+    <h1>ハモリ道場：聴く</h1>
+    <div class="en">Harmony Dojo: Listen</div>
     <p>二つの音を同時に鳴らし、上の音を少しずつ動かして「ワンワン」という唸りが止まる点を探します。そこが純正の響きです。</p>
   </header>
+
+
+  <div class="pitchbox">
+    <label class="label" for="a4">基準ピッチ(A4)</label>
+    <div class="pitchrow">
+      <button class="btn" type="button" id="a4down" aria-label="0.5 Hz 下げる">−</button>
+      <input type="number" id="a4" min="400" max="480" step="0.5" value="440" inputmode="decimal">
+      <span class="hzunit">Hz</span>
+      <button class="btn" type="button" id="a4up" aria-label="0.5 Hz 上げる">+</button>
+      <div class="chips" id="a4presets"></div>
+    </div>
+  </div>
 
   <div>
     <div class="label">音程を選ぶ</div>
@@ -200,7 +222,9 @@ const LOW_REFS=[{n:'G3',f:196.00},{n:'A3',f:220.00},{n:'B♭3',f:233.08},{n:'C4'
 const HIGH_REFS=[{n:'E4',f:329.63},{n:'F4',f:349.23},{n:'G4',f:392.00},{n:'A4',f:440.00}];
 
 const $=id=>document.getElementById(id);
-let baseIv=INTERVALS[2], oct=0, cur=derive(baseIv,0), ref=LOW_REFS[1], mode='upper';
+let baseIv=INTERVALS[2], oct=0, cur=derive(baseIv,0), refRaw=LOW_REFS[1], ref=LOW_REFS[1], mode='upper';
+// A4=440 のときの周波数 refRaw を、選んだ基準ピッチに合わせて換算する
+function applyA4(){ ref={n:refRaw.n, f:refRaw.f*A4/440}; }
 let offset=0, startOffset=0, mine=0, answered=false, voice='both';
 let ctx=null, oscL=null, oscU=null, gL=null, gU=null, master=null, playing=false;
 
@@ -343,9 +367,10 @@ function noteLabel(){
 function newQuestion(){
   cur=derive(baseIv,oct);
   const pool=mode==='upper'?LOW_REFS:HIGH_REFS;
-  ref=pool[Math.floor(Math.random()*pool.length)];
+  refRaw=pool[Math.floor(Math.random()*pool.length)];
   // 下を動かす場合は、広い音程で下の音が低くなりすぎないよう基準音を上げる
-  if(mode==='lower'&&oct>0) ref={n:ref.n.replace(/\d/,d=>+d+oct), f:ref.f*Math.pow(2,oct)};
+  if(mode==='lower'&&oct>0) refRaw={n:refRaw.n.replace(/\d/,d=>+d+oct), f:refRaw.f*Math.pow(2,oct)};
+  applyA4();
   const away=(10+Math.random()*20)*(Math.random()<.5?-1:1);
   startOffset=Math.max(-40,Math.min(40,target()+away));
   INTERVALS.forEach(iv=>$('chip-'+iv.id).setAttribute('aria-pressed',iv===baseIv));
@@ -450,6 +475,32 @@ function renderHist(){
     hist.map(r=>`<div><span>${r.iv}・${r.mode==='lower'?'下':'上'}を動かす(${r.ref||r.base})</span><span>${r.err>0?'+':''}${r.err.toFixed(1)}</span></div>`).join('');
 }
 
+
+/* ---------- 基準ピッチ(A4)。両ページ共通の設定として保存 ---------- */
+const A4_KEY='jit-a4';
+let A4=440;
+try{const v=parseFloat(localStorage.getItem(A4_KEY)); if(v>=400&&v<=480) A4=v;}catch(e){}
+const A4_PRESETS=[[415,'バロック'],[430,'古典派'],[440,''],[442,'日本のオケ'],[443,''],[466,'高い室内ピッチ']];
+function setA4(v,fromInput){
+  v=Math.round(Math.max(400,Math.min(480,v))*10)/10;
+  if(!isFinite(v)) return;
+  A4=v; if(!fromInput) $('a4').value=v;
+  try{localStorage.setItem(A4_KEY,v);}catch(e){}
+  A4_PRESETS.forEach(([p])=>$('a4p-'+p).setAttribute('aria-pressed',Math.abs(p-A4)<0.05));
+  onA4Change();
+}
+A4_PRESETS.forEach(([p,lab])=>{
+  const b=document.createElement('button'); b.className='chip'; b.type='button'; b.id='a4p-'+p;
+  b.innerHTML=lab?`${p}<small> ${lab}</small>`:`${p}`; b.onclick=()=>setA4(p);
+  $('a4presets').appendChild(b);
+});
+$('a4').value=A4;
+$('a4').addEventListener('input',e=>{const v=parseFloat(e.target.value); if(v>=400&&v<=480) setA4(v,true);});
+$('a4').addEventListener('change',e=>setA4(parseFloat(e.target.value)||440));
+$('a4down').onclick=()=>setA4(A4-0.5);
+$('a4up').onclick=()=>setA4(A4+0.5);
+function onA4Change(){ applyA4(); $('qmeta').textContent=noteLabel(); refreshAudio(); updateBeat(); }
+setA4(A4);
 renderHist(); newQuestion();
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'&&e.target.type==='range') return;
