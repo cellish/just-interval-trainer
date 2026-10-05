@@ -110,6 +110,8 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
 .hold i{transition:background .2s}
 .flash .streak{font-family:var(--mono);font-size:14px;color:var(--muted);margin-left:10px;font-weight:400}
 @media (prefers-reduced-motion:reduce){.sol.enter{animation:none}.sol.hit{transform:none}}
+.volbox{display:flex;align-items:center;gap:8px}
+.volbox input{width:140px}
 @media (max-width:480px){.sol{font-size:56px}.readout{margin-left:0;text-align:left}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -148,9 +150,10 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
       <select id="tuning"><option value="just">純正(ドローンに溶ける)</option><option value="pyth">ピタゴラス(5度の積み重ね)</option><option value="et">平均律(ピアノと同じ)</option></select></div>
     <div class="field"><label class="label" for="tol">合格の幅</label>
       <select id="tol"><option value="20">±20 セント(入門)</option><option value="10" selected>±10 セント</option><option value="5">±5 セント(上級)</option></select></div>
+    <div class="field"><label class="label" for="hold">合格までの時間</label>
+      <select id="hold"><option value="1200">1.2 秒(標準)</option><option value="2000">2 秒</option><option value="3000">3 秒</option><option value="5000">5 秒(ロングトーン)</option></select></div>
     <div class="field"><label class="label" for="dronemode">ドローン</label>
       <select id="dronemode"><option value="root">主音のみ</option><option value="fifth">主音+5度</option></select></div>
-    <div class="field"><label class="label" for="vol">ドローン音量</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></div>
   </div>
 
   <div class="bench">
@@ -161,10 +164,11 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
         <button class="chip" type="button" id="mode-quiz" aria-pressed="true">出題</button>
         <button class="chip" type="button" id="mode-free" aria-pressed="false">自由に歌う</button>
       </div>
+      <label class="volbox"><span class="label">ドローン音量</span><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></label>
     </div>
     <div class="statusrow">
       <div class="status" id="status">ヘッドホンの使用をおすすめします。スピーカーから出たドローンをマイクが拾うと、測定が乱れます。</div>
-      <div class="levelbox" title="マイク入力の大きさ。縦線を超えると声として扱います">
+      <div class="levelbox" title="マイク入力の大きさ。縦線より大きく、音程のある音を検出すると緑になります">
         <span class="label">入力</span><div class="level"><i id="lvl"></i><b id="lvlTh"></b></div>
       </div>
     </div>
@@ -241,7 +245,7 @@ DEGREES.forEach(d=>{d.just=1200*Math.log2(d.p/d.q); d.et=d.s*100;
 const SETS={major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10], chrom:[0,1,2,3,4,5,6,7,8,9,10,11]};
 
 const $=id=>document.getElementById(id);
-const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true, order:'random', source:'voice'};
+const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true, order:'random', source:'voice', hold:1200};
 try{Object.assign(S,JSON.parse(localStorage.getItem('drone-settings')||'{}'));}catch(e){}
 function saveSettings(){try{localStorage.setItem('drone-settings',JSON.stringify(S));}catch(e){}}
 
@@ -255,6 +259,7 @@ bind('set','set',v=>v,()=>{resetSeq(); buildLadder(); renderStats(); nextTarget(
 bind('order','order',v=>v,()=>{resetSeq(); nextTarget();});
 bind('tuning','tuning',v=>v,()=>{buildLadder(); showTarget();});
 bind('tol','tol',Number,drawZones);
+bind('hold','hold',Number,()=>resetHold());
 bind('dronemode','droneMode',v=>v,refreshDrone);
 $('vol').value=S.vol; $('vol').addEventListener('input',e=>{S.vol=+e.target.value; saveSettings(); if(droneGain) droneGain.gain.setTargetAtTime(S.vol,ctx.currentTime,.05);});
 $('auto').checked=S.auto; $('auto').onchange=e=>{S.auto=e.target.checked; saveSettings();};
@@ -376,12 +381,8 @@ function detect(){
   analyser.getFloatTimeDomainData(buf);
   const sr=ctx.sampleRate, W=Math.round(sr*P.win);
   let rms=0; for(let i=0;i<W;i++) rms+=buf[i]*buf[i]; rms=Math.sqrt(rms/W); lastRms=rms;
-  // 声の有無: 雑音レベルの4倍で開始、2.4倍を下回ったら終了(ヒステリシス)
-  const on=Math.max(0.006,noiseFloor*4), off=Math.max(0.0036,noiseFloor*2.4);
-  if(!voiced){
-    if(rms<on){ noiseFloor=noiseFloor*0.97+Math.min(rms,0.05)*0.03; return null; }
-    voiced=true;
-  }else if(rms<off){ voiced=false; return null; }
+  // ほぼ無音なら解析しない
+  if(rms<MIN_RMS){ voiced=false; trackNoise(rms); return null; }
   const minT=Math.max(2,Math.floor(sr/P.fmax)), maxT=Math.min(Math.floor(sr/P.fmin),buf.length-W-2,yinBuf.length-2);
   yinBuf[0]=1; let run=0;
   for(let t=1;t<=maxT+1;t++){
@@ -391,13 +392,22 @@ function detect(){
   let tau=-1, best=1, bestT=-1;
   for(let t=minT;t<=maxT;t++){
     if(yinBuf[t]<best){best=yinBuf[t]; bestT=t;}
-    if(yinBuf[t]<0.15){ while(t+1<=maxT&&yinBuf[t+1]<yinBuf[t]) t++; tau=t; break; }
+    if(yinBuf[t]<0.15){ while(t+1<=maxT&&yinBuf[t+1]<yinBuf[t]) t++; tau=t; best=yinBuf[t]; break; }
   }
-  if(tau<0){ if(best<0.25) tau=bestT; else return null; }   // 確信度が低すぎる窓は捨てる
+  /* 音の有無は「音量」ではなく「周期性(音程のある音か)」で判定する。
+     音量で判定すると、弓でゆっくり立ち上がるロングトーンを雑音として学習してしまうため。
+     始まりは確かな周期性(0.2未満)を要求し、続いている間は少し緩める(0.35未満)。 */
+  const lim=voiced?0.35:0.2;
+  if(best>=lim){ voiced=false; if(best>0.45) trackNoise(rms); return null; }
+  voiced=true;
+  if(tau<0) tau=bestT;
   const a=yinBuf[tau-1], b=yinBuf[tau], c=yinBuf[tau+1];
   const den=a-2*b+c, shift=den?(a-c)/(2*den):0;
   return sr/(tau+Math.max(-1,Math.min(1,shift)));
 }
+const MIN_RMS=0.0015;
+// 入力メーター表示用の雑音レベル(周期性のない音だけから学習。判定には使わない)
+function trackNoise(r){ noiseFloor=noiseFloor*0.98+Math.min(r,0.02)*0.02; }
 
 const H=[]; let lastGood=null, lastGoodT=0, pend=null, pendN=0;
 const cents=(a,b)=>1200*Math.log2(a/b);
@@ -427,7 +437,7 @@ function drawLevel(){
   const db=r=>Math.max(0,Math.min(1,(20*Math.log10(Math.max(r,1e-5))+60)/60));
   $('lvl').style.width=(db(lastRms)*100)+'%';
   $('lvl').classList.toggle('on',voiced);
-  $('lvlTh').style.left=(db(Math.max(0.006,noiseFloor*4))*100)+'%';
+  $('lvlTh').style.left=(db(MIN_RMS)*100)+'%';
 }
 
 /* ---------- Targets ---------- */
@@ -487,7 +497,7 @@ function drawZones(){
 }
 
 /* ---------- Hold-to-pass ---------- */
-const HOLD=1200, GAP=180;
+const GAP=180;   // 合格の幅から外れても、これより短ければ持続が途切れたとみなさない(ms)
 let holdStart=0, lastIn=0, holdDevs=[], locked=false;
 function resetHold(){holdStart=0; holdDevs=[]; $('holdBar').style.width='0';}
 
@@ -495,7 +505,7 @@ function resetHold(){holdStart=0; holdDevs=[]; $('holdBar').style.width='0';}
 const trace=[], passMarks=[]; let passFlashT=-1e9; const cv=$('trace'), g2=cv.getContext('2d');
 function drawTrace(now){
   while(trace.length&&now-trace[0].t>6000) trace.shift();
-  while(passMarks.length&&now-passMarks[0]>6000) passMarks.shift();
+  while(passMarks.length&&now-passMarks[0].t-passMarks[0].len>6000) passMarks.shift();
   const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
   if(cv.width!==Math.round(w*dpr)){cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);}
   g2.setTransform(dpr,0,0,dpr,0,0); g2.clearRect(0,0,w,h);
@@ -508,7 +518,7 @@ function drawTrace(now){
   [-50,0,50].forEach(c=>g2.fillText((c>0?'+':'')+c,4,y(c)-3));
   // 合格した時点の緑の縦帯(グラフと一緒に左へ流れる)
   g2.fillStyle=col('--good');
-  passMarks.forEach(t=>{const x=w-(now-t)/6000*w; g2.globalAlpha=.35; g2.fillRect(x-HOLD/6000*w,0,HOLD/6000*w,h); g2.globalAlpha=1; g2.fillRect(x-1.5,0,3,h);});
+  passMarks.forEach(m=>{const x=w-(now-m.t)/6000*w, bw=m.len/6000*w; g2.globalAlpha=.35; g2.fillRect(x-bw,0,bw,h); g2.globalAlpha=1; g2.fillRect(x-1.5,0,3,h);});
   g2.strokeStyle=col('--brass'); g2.lineWidth=2; g2.beginPath(); let pen=false;
   for(let i=0;i<trace.length;i++){
     const p=trace[i], x=w-(now-p.t)/6000*w;
@@ -555,7 +565,7 @@ function loop(){
   if(S.mode==='quiz'&&!locked){
     if(dev!=null&&Math.abs(dev)<=S.tol){
       if(!holdStart) holdStart=now; lastIn=now; holdDevs.push(dev);
-      const p=Math.min(1,(now-holdStart)/HOLD); $('holdBar').style.width=(p*100)+'%';
+      const p=Math.min(1,(now-holdStart)/S.hold); $('holdBar').style.width=(p*100)+'%';
       $('holdBar').style.background=`color-mix(in srgb, var(--good) ${Math.round(40+60*p)}%, var(--warn))`;
       if(p>=1) pass();
     }else if(holdStart&&now-lastIn>GAP) resetHold();
@@ -576,7 +586,7 @@ function chime(){
 function pass(){
   const avg=holdDevs.reduce((a,b)=>a+b,0)/holdDevs.length;
   addStat(target.s,avg);
-  const now=performance.now(); passMarks.push(now); passFlashT=now; streak++;
+  const now=performance.now(); passMarks.push({t:now,len:S.hold}); passFlashT=now; streak++;
   $('flash').className='flash ok';
   $('flash').innerHTML=`合格 ${target.sol}  平均 ${avg>0?'+':''}${avg.toFixed(1)} セント${S.auto?' → 次の音へ':''}<span class="streak">連続 ${streak}</span>`;
   $('sol').classList.add('hit'); $('badge').classList.add('show'); document.querySelector('.bench').classList.add('passed');
