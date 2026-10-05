@@ -136,8 +136,10 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
 
   <div class="settings">
     <div class="field"><label class="label" for="key">主音</label><select id="key"></select></div>
-    <div class="field"><label class="label" for="reg">声域</label>
-      <select id="reg"><option value="low">低い声(主音 C3 付近)</option><option value="high" selected>高い声(主音 C4 付近)</option></select></div>
+    <div class="field"><label class="label" for="reg">ドローンの高さ</label>
+      <select id="reg"><option value="bass">とても低い(主音 C2 付近)</option><option value="low">低い(主音 C3 付近)</option><option value="high" selected>高い(主音 C4 付近)</option></select></div>
+    <div class="field"><label class="label" for="source">音源</label>
+      <select id="source"><option value="voice">声</option><option value="cello">チェロ</option><option value="violin">ヴァイオリン</option></select></div>
     <div class="field"><label class="label" for="set">出題範囲</label>
       <select id="set"><option value="major">長音階</option><option value="minor">短音階(自然)</option><option value="chrom">半音階すべて</option></select></div>
     <div class="field"><label class="label" for="order">出題の順番</label>
@@ -212,7 +214,7 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
 
   <section>
     <h2>使い方のこつ</h2>
-    <p class="note">まずドローンだけを鳴らし、主音(ド)を歌って耳を慣らしてから出題に進むと安定します。純正で合わせると、正しい位置で声がドローンに溶け込み、うなりが消えた感じになります。ピタゴラス音律は5度だけを積み重ねて作る音律で、3度と6度が純正よりかなり広く(長3度で約22セント高く)なります。旋律を歌うときは、導音(シ)が主音に強く引き寄せられる感じが出ます。メーターを見続けるより、目を閉じて合わせてから確認するほうが耳が育ちます。マイクが使えない場合は、ブラウザのアドレスバーのマイク許可を確認してください。</p>
+    <p class="note">まずドローンだけを鳴らし、主音(ド)を歌って耳を慣らしてから出題に進むと安定します。純正で合わせると、正しい位置で声がドローンに溶け込み、うなりが消えた感じになります。ピタゴラス音律は5度だけを積み重ねて作る音律で、3度と6度が純正よりかなり広く(長3度で約22セント高く)なります。旋律を歌うときは、導音(シ)が主音に強く引き寄せられる感じが出ます。メーターを見続けるより、目を閉じて合わせてから確認するほうが耳が育ちます。チェロやヴァイオリンで使うときは「音源」を楽器に切り替えてください。検出する音域と反応の速さが楽器向けになります。ヴィブラートをかけると合格の幅に収まりにくいので、最初はノン・ヴィブラートで合わせるのがおすすめです。マイクが使えない場合は、ブラウザのアドレスバーのマイク許可を確認してください。</p>
   </section>
 </div>
 
@@ -239,7 +241,7 @@ DEGREES.forEach(d=>{d.just=1200*Math.log2(d.p/d.q); d.et=d.s*100;
 const SETS={major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10], chrom:[0,1,2,3,4,5,6,7,8,9,10,11]};
 
 const $=id=>document.getElementById(id);
-const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true, order:'random'};
+const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true, order:'random', source:'voice'};
 try{Object.assign(S,JSON.parse(localStorage.getItem('drone-settings')||'{}'));}catch(e){}
 function saveSettings(){try{localStorage.setItem('drone-settings',JSON.stringify(S));}catch(e){}}
 
@@ -248,6 +250,7 @@ const bind=(id,prop,conv=v=>v,after)=>{const el=$(id); el.value=S[prop];
   el.addEventListener('change',()=>{S[prop]=conv(el.value); saveSettings(); after&&after();});};
 bind('key','key',Number,()=>{refreshDrone(); buildLadder();});
 bind('reg','reg',v=>v,refreshDrone);
+bind('source','source',v=>v,()=>{ applyProfile(); });
 bind('set','set',v=>v,()=>{resetSeq(); buildLadder(); renderStats(); nextTarget();});
 bind('order','order',v=>v,()=>{resetSeq(); nextTarget();});
 bind('tuning','tuning',v=>v,()=>{buildLadder(); showTarget();});
@@ -257,7 +260,7 @@ $('vol').value=S.vol; $('vol').addEventListener('input',e=>{S.vol=+e.target.valu
 $('auto').checked=S.auto; $('auto').onchange=e=>{S.auto=e.target.checked; saveSettings();};
 $('chime').checked=S.chime; $('chime').onchange=e=>{S.chime=e.target.checked; saveSettings();};
 
-const tonicHz=()=>(S.reg==='low'?130.81:261.63)*Math.pow(2,S.key/12)*A4/440;
+const tonicHz=()=>({bass:65.41,low:130.81,high:261.63}[S.reg]||261.63)*Math.pow(2,S.key/12)*A4/440;
 const targetCents=d=>S.tuning==='just'?d.just:S.tuning==='pyth'?d.pyth:d.et;
 const wrap=c=>((c%1200)+1200+600)%1200-600;
 
@@ -321,7 +324,25 @@ $('hintBtn').onclick=playHint;
    - 0.15秒以内の途切れは直前の値でつなぐ
    - ヘッドホン使用時はブラウザのエコー除去を切る(歌声まで削られて途切れる原因になるため) */
 let analyser=null, buf=null, yinBuf=null, micOn=false, micStream=null, micSrc=null;
-let noiseFloor=0.003, voiced=false, lastRms=0;
+let noiseFloor=0.003, voiced=false, lastRms=0, hpF=null, lpF=null;
+/* 音源ごとの検出設定
+   fmin/fmax: 検出する音域(Hz)  hp/lp: 前処理フィルタ  win: 解析窓(秒。最低音の周期の約2.5倍)
+   oct/jump: オクターヴ跳躍・急な跳びを何回続いたら採用するか  bridge: 途切れをつなぐ長さ(ms) */
+const PROFILES={
+  voice: {fmin:65, fmax:1100, hp:60,  lp:2200, win:.032, oct:8, jump:3, bridge:150},
+  cello: {fmin:58, fmax:1400, hp:40,  lp:3500, win:.045, oct:3, jump:2, bridge:120},
+  violin:{fmin:180,fmax:2800, hp:140, lp:7000, win:.020, oct:3, jump:2, bridge:120},
+};
+let P=PROFILES[S.source]||PROFILES.voice;
+function applyProfile(){
+  P=PROFILES[S.source]||PROFILES.voice;
+  if(!analyser) return;
+  hpF.frequency.setValueAtTime(P.hp,ctx.currentTime); lpF.frequency.setValueAtTime(P.lp,ctx.currentTime);
+  const sr=ctx.sampleRate, need=Math.round(sr*P.win)+Math.ceil(sr/P.fmin)+4;
+  let n=2048; while(n<need&&n<32768) n*=2;
+  analyser.fftSize=n; buf=new Float32Array(n); yinBuf=new Float32Array(Math.ceil(sr/P.fmin)+4);
+  H.length=0; lastGood=null; pend=null; pendN=0;
+}
 async function startMic(){
   ensureCtx();
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
@@ -332,11 +353,11 @@ async function startMic(){
     micStream=await navigator.mediaDevices.getUserMedia({audio:{
       echoCancellation:!!S.speaker, noiseSuppression:false, autoGainControl:false, channelCount:1}});
     micSrc=ctx.createMediaStreamSource(micStream);
-    const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=60; hp.Q.value=0.7;
-    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2200; lp.Q.value=0.7;
-    analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
-    micSrc.connect(hp).connect(lp).connect(analyser);
-    buf=new Float32Array(analyser.fftSize); yinBuf=new Float32Array(1600);
+    hpF=ctx.createBiquadFilter(); hpF.type='highpass'; hpF.Q.value=0.7;
+    lpF=ctx.createBiquadFilter(); lpF.type='lowpass'; lpF.Q.value=0.7;
+    analyser=ctx.createAnalyser(); analyser.smoothingTimeConstant=0;
+    micSrc.connect(hpF).connect(lpF).connect(analyser);
+    applyProfile();
     $('micBtn').textContent='マイク作動中'; $('micBtn').disabled=true;
     setStatus(S.speaker
       ? 'マイクを使っています(エコー除去あり)。声が途切れやすいときはヘッドホンに切り替えてください。'
@@ -353,7 +374,7 @@ function setStatus(t,err){const s=$('status'); s.textContent=t; s.classList.togg
 
 function detect(){
   analyser.getFloatTimeDomainData(buf);
-  const sr=ctx.sampleRate, W=Math.round(sr*0.032);
+  const sr=ctx.sampleRate, W=Math.round(sr*P.win);
   let rms=0; for(let i=0;i<W;i++) rms+=buf[i]*buf[i]; rms=Math.sqrt(rms/W); lastRms=rms;
   // 声の有無: 雑音レベルの4倍で開始、2.4倍を下回ったら終了(ヒステリシス)
   const on=Math.max(0.006,noiseFloor*4), off=Math.max(0.0036,noiseFloor*2.4);
@@ -361,7 +382,7 @@ function detect(){
     if(rms<on){ noiseFloor=noiseFloor*0.97+Math.min(rms,0.05)*0.03; return null; }
     voiced=true;
   }else if(rms<off){ voiced=false; return null; }
-  const minT=Math.floor(sr/1100), maxT=Math.min(Math.floor(sr/65),buf.length-W-2,yinBuf.length-2);
+  const minT=Math.max(2,Math.floor(sr/P.fmax)), maxT=Math.min(Math.floor(sr/P.fmin),buf.length-W-2,yinBuf.length-2);
   yinBuf[0]=1; let run=0;
   for(let t=1;t<=maxT+1;t++){
     let s=0; for(let i=0;i<W;i++){const d=buf[i]-buf[i+t]; s+=d*d;}
@@ -379,11 +400,10 @@ function detect(){
 }
 
 const H=[]; let lastGood=null, lastGoodT=0, pend=null, pendN=0;
-const BRIDGE=150;
 const cents=(a,b)=>1200*Math.log2(a/b);
 function track(raw,now){
   if(raw==null){
-    if(lastGood&&now-lastGoodT<=BRIDGE) return lastGood;   // 短い途切れはつなぐ
+    if(lastGood&&now-lastGoodT<=P.bridge) return lastGood;   // 短い途切れはつなぐ
     H.length=0; lastGood=null; pend=null; pendN=0; return null;
   }
   let f=raw;
@@ -391,11 +411,11 @@ function track(raw,now){
     const d=cents(f,lastGood);
     if(Math.abs(Math.abs(d)-1200)<70){
       // 1オクターヴ跳び: 倍音や半周期を拾った誤検出のことが多い。8回続いたら本物とみなす
-      if(pend&&Math.abs(cents(f,pend))<70){ if(++pendN<8) f=f*(d>0?.5:2); else {H.length=0; pend=null; pendN=0;} }
+      if(pend&&Math.abs(cents(f,pend))<70){ if(++pendN<P.oct) f=f*(d>0?.5:2); else {H.length=0; pend=null; pendN=0;} }
       else { pend=f; pendN=1; f=f*(d>0?.5:2); }
     }else if(Math.abs(d)>80){
       // 急な跳び: 3回続けて同じ高さが出たら採用
-      if(pend&&Math.abs(cents(f,pend))<50){ if(++pendN<3) return lastGood; H.length=0; pend=null; pendN=0; }
+      if(pend&&Math.abs(cents(f,pend))<50){ if(++pendN<P.jump) return lastGood; H.length=0; pend=null; pendN=0; }
       else { pend=f; pendN=1; return lastGood; }
     }else{ pend=null; pendN=0; }
   }
