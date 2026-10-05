@@ -154,6 +154,8 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
       <select id="hold"><option value="1200">1.2 秒(標準)</option><option value="2000">2 秒</option><option value="3000">3 秒</option><option value="5000">5 秒(ロングトーン)</option></select></div>
     <div class="field"><label class="label" for="dronemode">ドローン</label>
       <select id="dronemode"><option value="root">主音のみ</option><option value="fifth">主音+5度</option></select></div>
+    <div class="field"><label class="label" for="timbre">ドローンの音色</label>
+      <select id="timbre"><option value="organ">オルガン</option><option value="soft">やわらか(ゆっくり揺らぐ)</option><option value="tanpura">タンブーラ風(撥弦の繰り返し)</option></select></div>
   </div>
 
   <div class="bench">
@@ -245,7 +247,7 @@ DEGREES.forEach(d=>{d.just=1200*Math.log2(d.p/d.q); d.et=d.s*100;
 const SETS={major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10], chrom:[0,1,2,3,4,5,6,7,8,9,10,11]};
 
 const $=id=>document.getElementById(id);
-const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true, order:'random', source:'voice', hold:1200};
+const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true, order:'random', source:'voice', hold:1200, timbre:'organ'};
 try{Object.assign(S,JSON.parse(localStorage.getItem('drone-settings')||'{}'));}catch(e){}
 function saveSettings(){try{localStorage.setItem('drone-settings',JSON.stringify(S));}catch(e){}}
 
@@ -261,6 +263,7 @@ bind('tuning','tuning',v=>v,()=>{buildLadder(); showTarget();});
 bind('tol','tol',Number,drawZones);
 bind('hold','hold',Number,()=>resetHold());
 bind('dronemode','droneMode',v=>v,refreshDrone);
+bind('timbre','timbre',v=>v,refreshDrone);
 $('vol').value=S.vol; $('vol').addEventListener('input',e=>{S.vol=+e.target.value; saveSettings(); if(droneGain) droneGain.gain.setTargetAtTime(S.vol,ctx.currentTime,.05);});
 $('auto').checked=S.auto; $('auto').onchange=e=>{S.auto=e.target.checked; saveSettings();};
 $('chime').checked=S.chime; $('chime').onchange=e=>{S.chime=e.target.checked; saveSettings();};
@@ -270,7 +273,7 @@ const targetCents=d=>S.tuning==='just'?d.just:S.tuning==='pyth'?d.pyth:d.et;
 const wrap=c=>((c%1200)+1200+600)%1200-600;
 
 /* ---------- Audio out: drone + hint ---------- */
-let ctx=null, out=null, droneGain=null, droneOscs=[], droneOn=false;
+let ctx=null, out=null, droneGain=null, droneOn=false;
 function ensureCtx(){
   if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();
     const len=Math.floor(ctx.sampleRate*1.4), ir=ctx.createBuffer(2,len,ctx.sampleRate);
@@ -292,20 +295,80 @@ function droneVoices(){
   if(S.droneMode==='fifth') v.push({f:t*1.5,g:.06});
   return v;
 }
+/* やわらか: 高い倍音をほぼ含まない温かい音。明るさだけを十数秒周期でゆっくり変え、
+   音の高さと音量は一定に保つ(唸りの聴き取りを邪魔しないため) */
+function softWave(){
+  const N=10, re=new Float32Array(N+1), im=new Float32Array(N+1);
+  const a={1:1,2:.38,3:.17,4:.08};
+  for(let n=1;n<=N;n++) im[n]=a[n]??.4/(n*n*n);
+  return ctx.createPeriodicWave(re,im);
+}
+/* タンブーラ風: 4本の弦を順に弾き続ける。弾くたびに倍音が下から上へ花開いて消えていく
+   (インドの楽器タンブーラの「ジャワリ」の響きを簡略化)。倍音は正確な整数倍なので基準音として狂わない */
+const tanCache={};
+function tanpuraBuffer(f){
+  const key=f.toFixed(3); if(tanCache[key]) return tanCache[key];
+  const sr=ctx.sampleRate, dur=4.6, n=Math.floor(sr*dur), b=ctx.createBuffer(1,n,sr), d=b.getChannelData(0);
+  const Hn=Math.min(36,Math.floor(6000/f));
+  for(let h=1;h<=Hn;h++){
+    const base=Math.pow(h,-0.8), dec=.42+.03*h, c=.12+.05*h, wdt=.32+.012*h, ph=Math.random()*6.283;
+    const w=2*Math.PI*f*h/sr;
+    // 振幅の包絡は10msごとに計算して補間(計算量を抑える)
+    const step=Math.floor(sr*.01);
+    for(let i0=0;i0<n;i0+=step){
+      const t=i0/sr, env=base*Math.exp(-dec*t)*(.3+.7*Math.exp(-(((t-c)/wdt)**2)));
+      const t1=(i0+step)/sr, env1=base*Math.exp(-dec*t1)*(.3+.7*Math.exp(-(((t1-c)/wdt)**2)));
+      for(let i=i0;i<Math.min(n,i0+step);i++){ const k=(i-i0)/step; d[i]+=(env+(env1-env)*k)*Math.sin(w*i+ph); }
+    }
+  }
+  let pk=0; for(let i=0;i<n;i++) pk=Math.max(pk,Math.abs(d[i]));
+  const att=Math.floor(sr*.006), rel=Math.floor(sr*.3);
+  for(let i=0;i<n;i++){ let g=.9/pk; if(i<att) g*=i/att; if(i>n-rel) g*=(n-i)/rel; d[i]*=g; }
+  return tanCache[key]=b;
+}
+let droneNodes=[], tanTimer=null;
+function startTanpura(){
+  const t=tonicHz();
+  // 主音+5度: Pa Sa Sa Sa(低) / 主音のみ: Sa Sa Sa Sa(低)
+  const pat=S.droneMode==='fifth' ? [[t*.75,.95],[t,.8],[t,.8],[t/2,1.1]] : [[t,.9],[t,.8],[t,.8],[t/2,1.1]];
+  const gaps=[1.05,1.05,1.05,1.45];
+  const bufs=pat.map(([f])=>tanpuraBuffer(f));
+  let idx=0, next=ctx.currentTime+.05;
+  const sched=()=>{
+    while(next<ctx.currentTime+.8){
+      const k=idx%4, src=ctx.createBufferSource(), g=ctx.createGain();
+      src.buffer=bufs[k]; g.gain.value=.37*pat[k][1];
+      src.connect(g).connect(droneGain); src.start(next); src.onended=()=>g.disconnect();
+      droneNodes.push(src); if(droneNodes.length>12) droneNodes.shift();
+      next+=gaps[k]; idx++;
+    }
+  };
+  sched(); tanTimer=setInterval(sched,200);
+}
 function startDrone(){
   ensureCtx(); stopDrone(true);
   droneGain=ctx.createGain(); droneGain.gain.value=0; droneGain.connect(out);
-  const w=organWave();
-  droneOscs=droneVoices().map(v=>{const o=ctx.createOscillator(); o.setPeriodicWave(w); o.frequency.value=v.f;
-    const g=ctx.createGain(); g.gain.value=v.g; o.connect(g).connect(droneGain); o.start(); return o;});
+  if(S.timbre==='tanpura') startTanpura();
+  else{
+    let dest=droneGain;
+    if(S.timbre==='soft'){
+      const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.Q.value=.4; lp.frequency.value=900;
+      const lfo=ctx.createOscillator(), lg=ctx.createGain(); lfo.frequency.value=.07; lg.gain.value=300;
+      lfo.connect(lg).connect(lp.frequency); lfo.start(); lp.connect(droneGain); dest=lp; droneNodes.push(lfo);
+    }
+    const w=S.timbre==='soft'?softWave():organWave(), boost=S.timbre==='soft'?0.92:1;
+    droneVoices().forEach(v=>{const o=ctx.createOscillator(); o.setPeriodicWave(w); o.frequency.value=v.f;
+      const g=ctx.createGain(); g.gain.value=v.g*boost; o.connect(g).connect(dest); o.start(); droneNodes.push(o);});
+  }
   droneGain.gain.setTargetAtTime(S.vol,ctx.currentTime,.1);
   droneOn=true; $('droneBtn').textContent='■ ドローン';
 }
 function stopDrone(quick){
+  if(tanTimer){clearInterval(tanTimer); tanTimer=null;}
   if(!droneGain) return;
-  const g=droneGain, os=droneOscs; g.gain.setTargetAtTime(0,ctx.currentTime,quick?.02:.1);
-  setTimeout(()=>{os.forEach(o=>{try{o.stop();}catch(e){}}); g.disconnect();},quick?100:700);
-  droneGain=null; droneOscs=[]; droneOn=false; $('droneBtn').textContent='▶ ドローン';
+  const g=droneGain, ns=droneNodes; g.gain.setTargetAtTime(0,ctx.currentTime,quick?.02:.1);
+  setTimeout(()=>{ns.forEach(o=>{try{o.stop();}catch(e){}}); g.disconnect();},quick?100:700);
+  droneGain=null; droneNodes=[]; droneOn=false; $('droneBtn').textContent='▶ ドローン';
 }
 function refreshDrone(){ if(droneOn) startDrone(); }
 $('droneBtn').onclick=()=>droneOn?stopDrone():startDrone();
