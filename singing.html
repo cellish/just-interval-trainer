@@ -25,7 +25,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15p
 .wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:28px 48px;display:flex;flex-direction:column;gap:20px}
 header h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,6vw,40px);margin:0;letter-spacing:.04em}
 header .en{font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--muted);margin-top:2px}
-header p{margin:4px 0 0;color:var(--muted);max-width:62ch}
+header p{margin:4px 0 0;color:var(--muted)}
 .label{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:700}
 .settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .field{display:flex;flex-direction:column;gap:4px}
@@ -78,7 +78,7 @@ table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:ta
 th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
 td.n,th.n{text-align:right;font-family:var(--mono)}
 .tablewrap{overflow-x:auto}
-.note{color:var(--muted);font-size:14px;max-width:64ch;margin:0}
+.note{color:var(--muted);font-size:14px;margin:0}
 kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 4px}
 
 .pitchbox{display:flex;flex-direction:column;gap:6px}
@@ -140,6 +140,8 @@ kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-r
       <select id="reg"><option value="low">低い声(主音 C3 付近)</option><option value="high" selected>高い声(主音 C4 付近)</option></select></div>
     <div class="field"><label class="label" for="set">出題範囲</label>
       <select id="set"><option value="major">長音階</option><option value="minor">短音階(自然)</option><option value="chrom">半音階すべて</option></select></div>
+    <div class="field"><label class="label" for="order">出題の順番</label>
+      <select id="order"><option value="random">ランダム</option><option value="up">上行音階</option><option value="down">下行音階</option></select></div>
     <div class="field"><label class="label" for="tuning">目標の音律</label>
       <select id="tuning"><option value="just">純正(ドローンに溶ける)</option><option value="pyth">ピタゴラス(5度の積み重ね)</option><option value="et">平均律(ピアノと同じ)</option></select></div>
     <div class="field"><label class="label" for="tol">合格の幅</label>
@@ -237,7 +239,7 @@ DEGREES.forEach(d=>{d.just=1200*Math.log2(d.p/d.q); d.et=d.s*100;
 const SETS={major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10], chrom:[0,1,2,3,4,5,6,7,8,9,10,11]};
 
 const $=id=>document.getElementById(id);
-const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true};
+const S={key:0, reg:'high', set:'major', tuning:'just', tol:10, droneMode:'root', vol:.6, mode:'quiz', auto:true, speaker:false, chime:true, order:'random'};
 try{Object.assign(S,JSON.parse(localStorage.getItem('drone-settings')||'{}'));}catch(e){}
 function saveSettings(){try{localStorage.setItem('drone-settings',JSON.stringify(S));}catch(e){}}
 
@@ -246,7 +248,8 @@ const bind=(id,prop,conv=v=>v,after)=>{const el=$(id); el.value=S[prop];
   el.addEventListener('change',()=>{S[prop]=conv(el.value); saveSettings(); after&&after();});};
 bind('key','key',Number,()=>{refreshDrone(); buildLadder();});
 bind('reg','reg',v=>v,refreshDrone);
-bind('set','set',v=>v,()=>{buildLadder(); renderStats(); nextTarget();});
+bind('set','set',v=>v,()=>{resetSeq(); buildLadder(); renderStats(); nextTarget();});
+bind('order','order',v=>v,()=>{resetSeq(); nextTarget();});
 bind('tuning','tuning',v=>v,()=>{buildLadder(); showTarget();});
 bind('tol','tol',Number,drawZones);
 bind('dronemode','droneMode',v=>v,refreshDrone);
@@ -408,10 +411,15 @@ function drawLevel(){
 }
 
 /* ---------- Targets ---------- */
-let target=null, lastS=-1;
+let target=null, lastS=-1, seqIdx=-1;
+// 音階順のときは、次に呼ばれたとき主音(ド)から始まるように位置を戻す
+function resetSeq(){ seqIdx = S.order==='down' ? 1 : -1; }
 function nextTarget(){
-  const pool=SETS[S.set].filter(s=>s!==lastS);
-  const s=pool[Math.floor(Math.random()*pool.length)]; lastS=s;
+  const list=SETS[S.set]; let s;
+  if(S.order==='up'){ seqIdx=(seqIdx+1)%list.length; s=list[seqIdx]; }
+  else if(S.order==='down'){ seqIdx=(seqIdx-1+list.length)%list.length; s=list[seqIdx]; }
+  else { const pool=list.filter(x=>x!==lastS); s=pool[Math.floor(Math.random()*pool.length)]; }
+  lastS=s;
   target=DEGREES[s]; resetHold(); $('flash').textContent=''; $('flash').className='flash';
   showTarget(); buildLadder();
   const el=$('sol'); el.classList.remove('enter','hit'); void el.offsetWidth; el.classList.add('enter');
@@ -597,7 +605,7 @@ document.addEventListener('keydown',e=>{
 const A4_KEY='jit-a4';
 let A4=440;
 try{const v=parseFloat(localStorage.getItem(A4_KEY)); if(v>=400&&v<=480) A4=v;}catch(e){}
-const A4_PRESETS=[[415,'バロック'],[430,'古典派'],[440,''],[442,'日本のオケ'],[443,''],[466,'高い室内ピッチ']];
+const A4_PRESETS=[[415,'バロック'],[430,'古典派'],[440,''],[442,'']];
 function setA4(v,fromInput){
   v=Math.round(Math.max(400,Math.min(480,v))*10)/10;
   if(!isFinite(v)) return;
@@ -622,7 +630,7 @@ function onA4Change(){ refreshDrone(); }
 ['quiz','free'].forEach(n=>$('mode-'+n).setAttribute('aria-pressed',n===S.mode));
 $('quizBtns').hidden=S.mode==='free';
 setA4(A4);
-drawZones(); nextTarget(); renderStats(); drawTrace(performance.now());
+drawZones(); resetSeq(); nextTarget(); renderStats(); drawTrace(performance.now());
 </script>
 </body>
 </html>
