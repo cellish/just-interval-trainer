@@ -416,7 +416,7 @@ $('hintBtn').onclick=playHint;
    - 1フレームだけの飛び値やオクターヴ誤検出を、連続して出るまで採用しない
    - 0.15秒以内の途切れは直前の値でつなぐ
    - ヘッドホン使用時はブラウザのエコー除去を切る(歌声まで削られて途切れる原因になるため) */
-let analyser=null, buf=null, yinBuf=null, micOn=false, micStream=null, micSrc=null;
+let analyser=null, buf=null, yinBuf=null, micOn=false, micStream=null, micSrc=null, loopRunning=false, micStarting=false;
 let noiseFloor=0.003, voiced=false, lastRms=0, hpF=null, lpF=null;
 /* 音源ごとの検出設定
    fmin/fmax: 検出する音域(Hz)  hp/lp: 前処理フィルタ  win: 解析窓(秒。最低音の周期の約2.5倍)
@@ -437,9 +437,10 @@ function applyProfile(){
   H.length=0; lastGood=null; pend=null; pendN=0;
 }
 async function startMic(){
+  if(micStarting) return; micStarting=true;
   ensureCtx();
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    setStatus('このブラウザではマイクが使えません。Chrome か Edge で開いてください。',true); return;}
+    setStatus('このブラウザではマイクが使えません。Chrome か Edge で開いてください。',true); micStarting=false; return;}
   try{
     if(micStream) micStream.getTracks().forEach(t=>t.stop());
     if(micSrc) micSrc.disconnect();
@@ -452,17 +453,28 @@ async function startMic(){
     analyser=ctx.createAnalyser(); analyser.smoothingTimeConstant=0;
     micSrc.connect(hpF).connect(lpF).connect(analyser);
     applyProfile();
-    $('micBtn').textContent='マイク作動中'; $('micBtn').disabled=true;
+    $('micBtn').textContent='■ マイクを止める';
     setStatus(S.speaker
       ? 'マイクを使っています(エコー除去あり)。声が途切れやすいときはヘッドホンに切り替えてください。'
       : 'マイクを使っています。指定の音を伸ばして歌ってください。');
-    if(!micOn){ micOn=true; requestAnimationFrame(loop); }
+    micOn=true; if(!loopRunning){ loopRunning=true; requestAnimationFrame(loop); }
     keepAwake(true);
   }catch(e){
     setStatus('マイクを開けませんでした。アドレスバーのマイク許可を確認してから、もう一度押してください。',true);
-  }
+  }finally{ micStarting=false; }
 }
-$('micBtn').onclick=startMic;
+function stopMic(){
+  if(micStream) micStream.getTracks().forEach(t=>t.stop());
+  if(micSrc) micSrc.disconnect();
+  micStream=null; micSrc=null; analyser=null; micOn=false;
+  voiced=false; lastRms=0; H.length=0; lastGood=null; pend=null; pendN=0;
+  resetHold();
+  $('micBtn').textContent='マイクを開始';
+  setStatus('マイクを止めました。「マイクを開始」で再開できます。');
+  setAudioSession('playback');
+  if(!droneOn) keepAwake(false);
+}
+$('micBtn').onclick=()=>micOn?stopMic():startMic();
 $('speaker').checked=!!S.speaker;
 $('speaker').onchange=e=>{ S.speaker=e.target.checked; saveSettings(); if(micOn) startMic(); };
 function setStatus(t,err){const s=$('status'); s.textContent=t; s.classList.toggle('err',!!err);}
@@ -660,7 +672,8 @@ function loop(){
       if(p>=1) pass();
     }else if(holdStart&&now-lastIn>GAP) resetHold();
   }
-  requestAnimationFrame(loop);
+  // マイクを止めたら、表示を待機状態に戻したこのフレームで終える(グラフは止めた時点のまま残る)
+  if(micOn) requestAnimationFrame(loop); else loopRunning=false;
 }
 let streak=0;
 function chime(){
