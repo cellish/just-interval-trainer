@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#EEF1F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161C" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ハモリ道場">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>ハモリ道場：聴く</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -259,6 +268,21 @@ INTERVALS.forEach(iv=>{
 });
 $('tbl').innerHTML=INTERVALS.map(iv=>`<tr><td>${iv.name}${iv.sub?'('+iv.sub+')':''}</td><td>${iv.p}:${iv.q}</td><td class="n">${iv.just.toFixed(1)}</td><td class="n">${iv.dev>0?'+':''}${iv.dev.toFixed(1)}</td></tr>`).join('');
 
+
+/* ---------- iPhone / iPad 向け ---------- */
+// 消音スイッチが入っていても音が鳴るように、音声の種類を「再生」として伝える(Safari 17 以降)
+function setAudioSession(type){ try{ if(navigator.audioSession) navigator.audioSession.type=type; }catch(e){} }
+// 練習中は画面が暗くならないようにする(対応ブラウザのみ)
+let wakeLock=null, wantAwake=false;
+async function keepAwake(on){
+  wantAwake=on;
+  try{
+    if(on&&!wakeLock&&navigator.wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{wakeLock=null;}); }
+    else if(!on&&wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&wantAwake) keepAwake(true); });
+
 /* ---------- Audio ---------- */
 const VOL=0.11;
 /* 音色: 基本の倍音構成に加え、唸りを生む倍音(下の音のp倍音・上の音のq倍音)だけを
@@ -303,6 +327,7 @@ function applyWaves(force){
   waveKey=key; oscL.setPeriodicWave(makeWave('L')); oscU.setPeriodicWave(makeWave('U'));
 }
 function startAudio(){
+  setAudioSession('playback'); keepAwake(true);
   if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)();
   ctx.resume(); if(!out) buildOut();
   const f=freqs(), vg=voiceGains();
@@ -322,7 +347,7 @@ function stopAudio(){
   const t=ctx.currentTime, m=master, a=oscL, b=oscU;
   m.gain.setTargetAtTime(0,t,0.08);
   setTimeout(()=>{try{a.stop();b.stop();m.disconnect();}catch(e){}},600);
-  playing=false; $('play').textContent='▶ 鳴らす';
+  playing=false; $('play').textContent='▶ 鳴らす'; keepAwake(false);
 }
 function refreshAudio(){
   if(!playing) return;
@@ -509,5 +534,9 @@ document.addEventListener('keydown',e=>{
 });
 </script>
 
+<script>
+/* オフラインでも使えるようにする(PWA) */
+if('serviceWorker' in navigator && location.protocol==='https:') window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
 </body>
 </html>

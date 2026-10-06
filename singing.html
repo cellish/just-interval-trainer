@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#EEF1F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161C" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ハモリ道場">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>ハモリ道場：歌う</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -272,9 +281,25 @@ const tonicHz=()=>({bass:65.41,low:130.81,high:261.63}[S.reg]||261.63)*Math.pow(
 const targetCents=d=>S.tuning==='just'?d.just:S.tuning==='pyth'?d.pyth:d.et;
 const wrap=c=>((c%1200)+1200+600)%1200-600;
 
+
+/* ---------- iPhone / iPad 向け ---------- */
+// 消音スイッチが入っていても音が鳴るように、音声の種類を「再生」として伝える(Safari 17 以降)
+function setAudioSession(type){ try{ if(navigator.audioSession) navigator.audioSession.type=type; }catch(e){} }
+// 練習中は画面が暗くならないようにする(対応ブラウザのみ)
+let wakeLock=null, wantAwake=false;
+async function keepAwake(on){
+  wantAwake=on;
+  try{
+    if(on&&!wakeLock&&navigator.wakeLock){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{wakeLock=null;}); }
+    else if(!on&&wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&wantAwake) keepAwake(true); });
+
 /* ---------- Audio out: drone + hint ---------- */
 let ctx=null, out=null, droneGain=null, droneOn=false;
 function ensureCtx(){
+  if(!micOn) setAudioSession('playback');
   if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();
     const len=Math.floor(ctx.sampleRate*1.4), ir=ctx.createBuffer(2,len,ctx.sampleRate);
     for(let c=0;c<2;c++){const d=ir.getChannelData(c); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3.2);}
@@ -361,14 +386,14 @@ function startDrone(){
       const g=ctx.createGain(); g.gain.value=v.g*boost; o.connect(g).connect(dest); o.start(); droneNodes.push(o);});
   }
   droneGain.gain.setTargetAtTime(S.vol,ctx.currentTime,.1);
-  droneOn=true; $('droneBtn').textContent='■ ドローン';
+  droneOn=true; $('droneBtn').textContent='■ ドローン'; keepAwake(true);
 }
 function stopDrone(quick){
   if(tanTimer){clearInterval(tanTimer); tanTimer=null;}
   if(!droneGain) return;
   const g=droneGain, ns=droneNodes; g.gain.setTargetAtTime(0,ctx.currentTime,quick?.02:.1);
   setTimeout(()=>{ns.forEach(o=>{try{o.stop();}catch(e){}}); g.disconnect();},quick?100:700);
-  droneGain=null; droneNodes=[]; droneOn=false; $('droneBtn').textContent='▶ ドローン';
+  droneGain=null; droneNodes=[]; droneOn=false; $('droneBtn').textContent='▶ ドローン'; if(!micOn) keepAwake(false);
 }
 function refreshDrone(){ if(droneOn) startDrone(); }
 $('droneBtn').onclick=()=>droneOn?stopDrone():startDrone();
@@ -418,6 +443,7 @@ async function startMic(){
   try{
     if(micStream) micStream.getTracks().forEach(t=>t.stop());
     if(micSrc) micSrc.disconnect();
+    setAudioSession('play-and-record');
     micStream=await navigator.mediaDevices.getUserMedia({audio:{
       echoCancellation:!!S.speaker, noiseSuppression:false, autoGainControl:false, channelCount:1}});
     micSrc=ctx.createMediaStreamSource(micStream);
@@ -431,6 +457,7 @@ async function startMic(){
       ? 'マイクを使っています(エコー除去あり)。声が途切れやすいときはヘッドホンに切り替えてください。'
       : 'マイクを使っています。指定の音を伸ばして歌ってください。');
     if(!micOn){ micOn=true; requestAnimationFrame(loop); }
+    keepAwake(true);
   }catch(e){
     setStatus('マイクを開けませんでした。アドレスバーのマイク許可を確認してから、もう一度押してください。',true);
   }
@@ -724,6 +751,10 @@ function onA4Change(){ refreshDrone(); }
 $('quizBtns').hidden=S.mode==='free';
 setA4(A4);
 drawZones(); resetSeq(); nextTarget(); renderStats(); drawTrace(performance.now());
+</script>
+<script>
+/* オフラインでも使えるようにする(PWA) */
+if('serviceWorker' in navigator && location.protocol==='https:') window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
 </html>
