@@ -19,17 +19,17 @@
 /* Layout: one working column like a tuning bench — interval picker, the tuning knob, then the verdict on a cents ruler. */
 :root{
   --bg:#EEF1F4; --panel:#FFFFFF; --ink:#18202B; --muted:#5D6877; --line:#D3DAE2;
-  --brass:#B07514; --brass-soft:#F4E6CC; --just:#2F7A5B; --et:#7A5AA8;
+  --brass:#B07514; --brass-soft:#F4E6CC; --just:#2F7A5B; --et:#7A5AA8; --pyth:#2D6CA3;
   --display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
   --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#12161C; --panel:#1B2129; --ink:#E7EBF0; --muted:#98A3B1; --line:#2E3742;
-  --brass:#E2A63E; --brass-soft:#3A2E18; --just:#5CC49A; --et:#B194E0; color-scheme:dark}}
+  --brass:#E2A63E; --brass-soft:#3A2E18; --just:#5CC49A; --et:#B194E0; --pyth:#7FB4E8; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#12161C; --panel:#1B2129; --ink:#E7EBF0; --muted:#98A3B1; --line:#2E3742;
-  --brass:#E2A63E; --brass-soft:#3A2E18; --just:#5CC49A; --et:#B194E0; color-scheme:dark}
+  --brass:#E2A63E; --brass-soft:#3A2E18; --just:#5CC49A; --et:#B194E0; --pyth:#7FB4E8; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7}
 .wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:28px 48px;display:flex;flex-direction:column;gap:20px}
@@ -171,15 +171,17 @@ section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:
 
     <div class="result" id="result" hidden>
       <div class="verdict" id="verdict"></div>
-      <div class="ruler"><svg id="ruler" viewBox="0 0 640 86" role="img" aria-label="セント目盛り上の位置"></svg></div>
+      <div class="ruler"><svg id="ruler" viewBox="0 0 640 100" role="img" aria-label="セント目盛り上の位置"></svg></div>
       <div class="legend">
         <span><i style="background:var(--brass)"></i>あなた</span>
         <span><i style="background:var(--just)"></i>純正</span>
         <span><i style="background:var(--et)"></i>平均律</span>
+        <span><i style="background:var(--pyth)"></i>ピタゴラス</span>
       </div>
       <div class="row">
         <button class="btn" id="hearJust">純正で聴く</button>
         <button class="btn" id="hearEt">平均律で聴く</button>
+        <button class="btn" id="hearPyth">ピタゴラスで聴く</button>
         <button class="btn" id="hearMine">自分の答えで聴く</button>
         <button class="btn" id="retry">やり直し</button>
         <button class="btn primary" id="next">次の問題</button>
@@ -195,37 +197,38 @@ section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:
 
   <section>
     <h2>平均律と純正のずれ</h2>
-    <table>
-      <thead><tr><th>音程</th><th>比</th><th class="n">純正(cent)</th><th class="n">平均律との差</th></tr></thead>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>音程</th><th>純正</th><th class="n">平均律との差</th><th>ピタゴラス</th><th class="n">平均律との差</th></tr></thead>
       <tbody id="tbl"></tbody>
-    </table>
-    <p class="note" style="margin-top:10px">差がマイナスなら、純正は平均律より低い位置にあります。長3度は約14セント低く取ると唸りが消えます。合唱で長3度を「少し低めに」と言われるのはこのためです。短7度は 9:5 で計算しています(16:9 とする流儀もあり、そちらは平均律より約4セント低い位置になります)。トライトーンは、唸りが実際に消える点として聴き取れる 7:5 を使っています。教科書的な 45:32 は倍音の重なりが高すぎて、唸りで合わせることができません。オクターヴを足しても、純正の位置のずれ方は同じです。</p>
+    </table></div>
+    <p class="note" style="margin-top:10px">差がマイナスなら、純正は平均律より低い位置にあります。長3度は約14セント低く取ると唸りが消えます。合唱で長3度を「少し低めに」と言われるのはこのためです。短7度は 9:5 で計算しています(16:9 とする流儀もあり、そちらは平均律より約4セント低い位置になります)。トライトーンは、唸りが実際に消える点として聴き取れる 7:5 を使っています。教科書的な 45:32 は倍音の重なりが高すぎて、唸りで合わせることができません。ピタゴラス音律は完全5度(3:2)だけを積み重ねて作る音律で、長3度・長6度・長7度は純正より約22セント高く、短3度・短6度は約22セント低くなります。旋律では導音が主音に強く引き寄せられる張りのある響きになる一方、和音として重ねると唸りが残ります。オクターヴを足しても、純正やピタゴラスの位置のずれ方は同じです。</p>
   </section>
 </div>
 
 <script>
 const INTERVALS=[
-  {id:'m2',name:'短2度',kind:'短',num:2,p:16,q:15,et:100},
-  {id:'M2',name:'長2度',sub:'大全音',kind:'長',num:2,p:9,q:8,et:200},
-  {id:'m3',name:'短3度',kind:'短',num:3,p:6,q:5,et:300},
-  {id:'M3',name:'長3度',kind:'長',num:3,p:5,q:4,et:400},
-  {id:'P4',name:'完全4度',kind:'完全',num:4,p:4,q:3,et:500},
-  {id:'TT',name:'トライトーン',sub:'増4度',kind:'増',num:4,p:7,q:5,et:600},
-  {id:'P5',name:'完全5度',kind:'完全',num:5,p:3,q:2,et:700},
-  {id:'m6',name:'短6度',kind:'短',num:6,p:8,q:5,et:800},
-  {id:'M6',name:'長6度',kind:'長',num:6,p:5,q:3,et:900},
-  {id:'m7',name:'短7度',kind:'短',num:7,p:9,q:5,et:1000},
-  {id:'M7',name:'長7度',kind:'長',num:7,p:15,q:8,et:1100},
-  {id:'P8',name:'オクターヴ',kind:'完全',num:8,p:2,q:1,et:1200},
+  {id:'m2',name:'短2度',kind:'短',num:2,p:16,q:15,et:100,pp:256,pq:243},
+  {id:'M2',name:'長2度',sub:'大全音',kind:'長',num:2,p:9,q:8,et:200,pp:9,pq:8},
+  {id:'m3',name:'短3度',kind:'短',num:3,p:6,q:5,et:300,pp:32,pq:27},
+  {id:'M3',name:'長3度',kind:'長',num:3,p:5,q:4,et:400,pp:81,pq:64},
+  {id:'P4',name:'完全4度',kind:'完全',num:4,p:4,q:3,et:500,pp:4,pq:3},
+  {id:'TT',name:'トライトーン',sub:'増4度',kind:'増',num:4,p:7,q:5,et:600,pp:729,pq:512},
+  {id:'P5',name:'完全5度',kind:'完全',num:5,p:3,q:2,et:700,pp:3,pq:2},
+  {id:'m6',name:'短6度',kind:'短',num:6,p:8,q:5,et:800,pp:128,pq:81},
+  {id:'M6',name:'長6度',kind:'長',num:6,p:5,q:3,et:900,pp:27,pq:16},
+  {id:'m7',name:'短7度',kind:'短',num:7,p:9,q:5,et:1000,pp:16,pq:9},
+  {id:'M7',name:'長7度',kind:'長',num:7,p:15,q:8,et:1100,pp:243,pq:128},
+  {id:'P8',name:'オクターヴ',kind:'完全',num:8,p:2,q:1,et:1200,pp:2,pq:1},
 ];
-INTERVALS.forEach(iv=>{iv.just=1200*Math.log2(iv.p/iv.q); iv.dev=iv.just-iv.et;});
+INTERVALS.forEach(iv=>{iv.just=1200*Math.log2(iv.p/iv.q); iv.dev=iv.just-iv.et;
+  iv.pyth=1200*Math.log2(iv.pp/iv.pq); iv.pdev=iv.pyth-iv.et;});   // ピタゴラス音律(5度の積み重ね)
 const gcd=(a,b)=>b?gcd(b,a%b):a;
 /* 選んだ音程にオクターヴを足した「実際に鳴らす音程」 */
 function derive(iv,k){
   let p=iv.p*Math.pow(2,k), q=iv.q; const g=gcd(p,q); p/=g; q/=g;
   const name=k===0?iv.name:`${iv.kind}${iv.num+7*k}度`;
   const full=k===0?name:`${name}(${iv.name}+${k}オクターヴ)`;
-  return {name, full, p, q, et:iv.et+1200*k, dev:iv.dev};
+  return {name, full, p, q, pp:iv.pp*Math.pow(2,k), pq:iv.pq, et:iv.et+1200*k, dev:iv.dev, pdev:iv.pdev};
 }
 const LOW_REFS=[{n:'G3',f:196.00},{n:'A3',f:220.00},{n:'B♭3',f:233.08},{n:'C4',f:261.63}];
 const HIGH_REFS=[{n:'E4',f:329.63},{n:'F4',f:349.23},{n:'G4',f:392.00},{n:'A4',f:440.00}];
@@ -240,6 +243,7 @@ let ctx=null, oscL=null, oscU=null, gL=null, gU=null, master=null, playing=false
 /* 動かす音の「平均律の位置からのずれ」= offset(cent)。
    上を動かす: 純正は +dev の位置。下を動かす: 純正は −dev の位置。 */
 const target=()=>mode==='upper'?cur.dev:-cur.dev;
+const pythTarget=()=>mode==='upper'?cur.pdev:-cur.pdev;
 function freqs(o=offset){
   if(mode==='upper') return {L:ref.f, U:ref.f*Math.pow(2,(cur.et+o)/1200)};
   return {U:ref.f, L:ref.f*Math.pow(2,(-cur.et+o)/1200)};
@@ -266,7 +270,8 @@ INTERVALS.forEach(iv=>{
 ['upper','lower'].forEach(m=>{
   $('mode-'+m).onclick=()=>{mode=m; newQuestion();};
 });
-$('tbl').innerHTML=INTERVALS.map(iv=>`<tr><td>${iv.name}${iv.sub?'('+iv.sub+')':''}</td><td>${iv.p}:${iv.q}</td><td class="n">${iv.just.toFixed(1)}</td><td class="n">${iv.dev>0?'+':''}${iv.dev.toFixed(1)}</td></tr>`).join('');
+const sg=v=>(v>0.05?'+':v<-0.05?'':'±')+v.toFixed(1);
+$('tbl').innerHTML=INTERVALS.map(iv=>`<tr><td>${iv.name}${iv.sub?'('+iv.sub+')':''}</td><td>${iv.p}:${iv.q}</td><td class="n">${sg(iv.dev)}</td><td>${iv.pp}:${iv.pq}</td><td class="n">${sg(iv.pdev)}</td></tr>`).join('');
 
 
 /* ---------- iPhone / iPad 向け ---------- */
@@ -432,11 +437,16 @@ $('submit').onclick=()=>{
   $('explain').textContent = Math.abs(t)<0.1
     ? `${cur.name}は純正と平均律が一致します。`
     : `${cur.name}の純正(${cur.p}:${cur.q})を作るには、${which}を平均律より ${Math.abs(t).toFixed(1)} セント${t<0?'低く':'高く'}取ります。「平均律で聴く」と比べると、平均律側に唸りが残っているのが分かります。`;
+  const pt=pythTarget();
+  $('explain').textContent += Math.abs(pt-t)<0.05
+    ? ` この音程はピタゴラス音律でも同じ比(${cur.pp}:${cur.pq})です。`
+    : ` ピタゴラス音律(${cur.pp}:${cur.pq})では、平均律より ${Math.abs(pt).toFixed(1)} セント${pt<0?'低く':'高く'}なり、純正とは ${Math.abs(pt-t).toFixed(1)} セント違います。`;
   $('result').hidden=false;
   saveHist({iv:cur.name,mode,ref:ref.n,err:+err.toFixed(1),t:Date.now()});
 };
 $('hearJust').onclick=()=>{setOffset(target()); if(!playing) startAudio();};
 $('hearEt').onclick=()=>{setOffset(0); if(!playing) startAudio();};
+$('hearPyth').onclick=()=>{setOffset(pythTarget()); if(!playing) startAudio();};
 $('hearMine').onclick=()=>{setOffset(mine); if(!playing) startAudio();};
 
 /* ---------- Ruler ---------- */
@@ -450,11 +460,16 @@ function drawRuler(){
        `<text x="${x(c)}" y="64" text-anchor="middle" font-size="11" font-family="IBM Plex Mono,monospace" fill="var(--muted)">${c>0?'+':''}${c}</text>`;
   }
   const mark=(c,col,lab,y)=>`<circle cx="${x(c)}" cy="40" r="7" fill="${col}"/><text x="${x(c)}" y="${y}" text-anchor="middle" font-size="11" fill="${col}" font-family="Zen Kaku Gothic New,sans-serif">${lab}</text>`;
-  const close=Math.abs(t)<4;
-  s+=mark(0,'var(--et)','平均律',20);
-  s+=mark(t,'var(--just)','純正',close?82:20);
+  const pt=pythTarget(), same=Math.abs(t-pt)<0.05;
+  // 3つの印: 近いものはラベルを上下に振り分けて重ならないようにする
+  const ms=[{c:0,col:'var(--et)',lab:'平均律'}];
+  if(same) ms.push({c:t,col:'var(--just)',lab:'純正=ピタゴラス'});
+  else { ms.push({c:t,col:'var(--just)',lab:'純正'}); ms.push({c:pt,col:'var(--pyth)',lab:'ピタゴラス'}); }
+  ms.sort((p,q)=>p.c-q.c);
+  let up=true; ms.forEach((m,i)=>{ if(i>0&&Math.abs(x(m.c)-x(ms[i-1].c))<70) up=!up; else up=true; m.y=up?20:82; });
+  ms.forEach(m=>{ s+=mark(m.c,m.col,m.lab,m.y); });
   s+=`<circle cx="${x(mine)}" cy="40" r="5" fill="var(--brass)" stroke="var(--panel)" stroke-width="2"/>`;
-  if(!close) s+=`<text x="${W/2}" y="82" text-anchor="middle" font-size="10" fill="var(--muted)">${mode==='upper'?'上':'下'}の音の平均律からのずれ(cent)</text>`;
+  s+=`<text x="${W/2}" y="97" text-anchor="middle" font-size="10" fill="var(--muted)">${mode==='upper'?'上':'下'}の音の平均律からのずれ(cent)</text>`;
   $('ruler').innerHTML=s;
 }
 
