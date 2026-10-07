@@ -86,6 +86,34 @@ section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:
 .pitchrow button.btn{padding:6px 12px;font-family:var(--mono)}
 .pitchrow .chips{margin-top:0}
 .pitchrow .chip small{font-family:var(--body)}
+/* 音程スライダー */
+.ivcard{margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 16px 12px}
+.ivread{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.ivread .nm{font-family:var(--display);font-size:28px;font-weight:800;line-height:1.2}
+.ivread .ab{font-family:var(--mono);font-size:18px;color:var(--brass);font-weight:500}
+.ivread .rt{font-family:var(--mono);font-size:15px;color:var(--muted)}
+.ivread .st{font-family:var(--mono);font-size:13px;color:var(--muted);margin-left:auto}
+.ivtrack{position:relative;height:96px;margin:8px 16px 4px;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none}
+.ivtrack .line{position:absolute;left:0;right:0;top:44px;height:6px;border-radius:3px;background:var(--line)}
+.ivtrack .fill{position:absolute;left:0;top:44px;height:6px;border-radius:3px;background:var(--brass)}
+.ivtrack .t{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;color:var(--muted);font:inherit;background:none;border:0;padding:0;cursor:pointer}
+.ivtrack .t .r{font-family:var(--mono);font-size:12px;height:30px;display:flex;align-items:flex-end;white-space:nowrap}
+.ivtrack .t b{display:block;width:2px;height:18px;margin-top:8px;background:var(--muted);opacity:.45}
+.ivtrack .t .ab{margin-top:8px;font-family:var(--mono);font-size:13px}
+.ivtrack .t.on{color:var(--ink);font-weight:700}
+.ivtrack .t.on .r{color:var(--brass);font-weight:500}
+.ivtrack .knob{position:absolute;top:33px;width:28px;height:28px;border-radius:50%;background:var(--panel);border:3px solid var(--brass);transform:translateX(-50%);box-shadow:0 2px 6px rgba(0,0,0,.15);z-index:1;transition:left .12s ease-out}
+.ivtrack .knob:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+.ivtrack .fill{transition:width .12s ease-out}
+.ivcard .steps{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ivcard .steps .btn{padding:4px 12px;white-space:nowrap}
+@media (max-width:480px){
+  .ivtrack .t .r{flex-direction:column;align-items:center;justify-content:flex-end;font-size:11px;line-height:1.05}
+  .ivtrack .t .rs{display:block;width:14px;height:1px;background:currentColor;font-size:0;margin:1px 0}
+  .ivtrack .t .ab{font-size:12px}
+  .ivcard .hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){.ivtrack .knob,.ivtrack .fill{transition:none}}
 @media (max-width:480px){.nudges{grid-template-columns:repeat(4,1fr)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -114,7 +142,13 @@ section h2{font-family:var(--display);font-size:18px;margin:0 0 8px;font-weight:
 
   <div>
     <div class="label">音程を選ぶ</div>
-    <div class="chips" id="chips"></div>
+    <div class="ivcard">
+      <div class="ivread"><span class="nm" id="ivName">長3度</span><span class="ab" id="ivAb">M3</span><span class="rt" id="ivRatio">5:4</span><span class="st" id="ivSemi">半音 4 個</span></div>
+      <div class="ivtrack" id="ivTrack"><div class="line"></div><div class="fill" id="ivFill"></div>
+        <div class="knob" id="ivKnob" role="slider" tabindex="0" aria-label="音程" aria-valuemin="1" aria-valuemax="12"></div></div>
+      <div class="steps"><button class="btn" type="button" id="ivDown">◀ 狭く</button><button class="btn" type="button" id="ivUp">広く ▶</button>
+        <span class="status hint">目盛りを押すとその音程へ。つまみを選べば ← → キーでも動かせます</span></div>
+    </div>
   </div>
 
   <div>
@@ -250,14 +284,50 @@ function freqs(o=offset){
 }
 
 /* ---------- UI build ---------- */
-const chips=$('chips');
-INTERVALS.forEach(iv=>{
-  const b=document.createElement('button');
-  b.className='chip'; b.type='button'; b.id='chip-'+iv.id;
-  b.innerHTML=`${iv.name}<small>${iv.p}:${iv.q}</small>`;
-  b.onclick=()=>{baseIv=iv; newQuestion();};
-  chips.appendChild(b);
+/* 音程スライダー: 目盛りの上に比、下に記号(m2〜P8)。目盛りを押す・つまみを引く・← → キーで選ぶ */
+const ivTrack=$('ivTrack'), ivKnob=$('ivKnob'), NIV=INTERVALS.length;
+const ivPct=i=>i/(NIV-1)*100;
+INTERVALS.forEach((iv,i)=>{
+  const t=document.createElement('button');
+  t.type='button'; t.className='t'; t.id='chip-'+iv.id; t.style.left=ivPct(i)+'%';
+  t.title=`${iv.name} ${iv.p}:${iv.q}`;
+  t.innerHTML=`<span class="r"><span>${iv.p}</span><span class="rs">:</span><span>${iv.q}</span></span><b></b><span class="ab">${iv.id}</span>`;
+  t.addEventListener('click',e=>{e.stopPropagation(); selectIv(i);});
+  ivTrack.insertBefore(t,ivKnob);
 });
+function selectIv(i){
+  i=Math.max(0,Math.min(NIV-1,i));
+  if(INTERVALS[i]===baseIv) return;
+  baseIv=INTERVALS[i]; newQuestion();
+}
+function updateIvSlider(){
+  const i=INTERVALS.indexOf(baseIv);
+  ivKnob.style.left=ivPct(i)+'%'; $('ivFill').style.width=ivPct(i)+'%';
+  INTERVALS.forEach(iv=>$('chip-'+iv.id).classList.toggle('on',iv===baseIv));
+  $('ivName').textContent=cur.name;
+  $('ivAb').textContent=baseIv.id+(oct?` +${oct}oct`:'');
+  $('ivRatio').textContent=`${cur.p}:${cur.q}`;
+  $('ivSemi').textContent=`半音 ${Math.round(cur.et/100)} 個`;
+  ivKnob.setAttribute('aria-valuenow',i+1); ivKnob.setAttribute('aria-valuetext',`${cur.name} ${cur.p}:${cur.q}`);
+  $('ivDown').disabled=i===0; $('ivUp').disabled=i===NIV-1;
+}
+// つまみやバーを引きずって選ぶ
+function ivFromX(x){ const r=ivTrack.getBoundingClientRect(); return Math.round((x-r.left)/r.width*(NIV-1)); }
+ivTrack.addEventListener('pointerdown',e=>{
+  if(e.target.closest('.t')) return;
+  ivTrack.setPointerCapture(e.pointerId); selectIv(ivFromX(e.clientX));
+  const mv=ev=>selectIv(ivFromX(ev.clientX));
+  const up=()=>{ivTrack.removeEventListener('pointermove',mv); ivTrack.removeEventListener('pointerup',up); ivTrack.removeEventListener('pointercancel',up);};
+  ivTrack.addEventListener('pointermove',mv); ivTrack.addEventListener('pointerup',up); ivTrack.addEventListener('pointercancel',up);
+});
+ivKnob.addEventListener('keydown',e=>{
+  const i=INTERVALS.indexOf(baseIv), k={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1}[e.key];
+  if(k){ selectIv(i+k); e.preventDefault(); }
+  else if(e.key==='Home'){ selectIv(0); e.preventDefault(); }
+  else if(e.key==='End'){ selectIv(NIV-1); e.preventDefault(); }
+});
+$('ivDown').onclick=()=>selectIv(INTERVALS.indexOf(baseIv)-1);
+$('ivUp').onclick=()=>selectIv(INTERVALS.indexOf(baseIv)+1);
 [0,1,2].forEach(k=>{ $('oct-'+k).onclick=()=>{oct=k; newQuestion();}; });
 [-5,-1,-0.2,-0.1,0.1,0.2,1,5].forEach(d=>{
   const b=document.createElement('button');
@@ -403,7 +473,7 @@ function newQuestion(){
   applyA4();
   const away=(10+Math.random()*20)*(Math.random()<.5?-1:1);
   startOffset=Math.max(-40,Math.min(40,target()+away));
-  INTERVALS.forEach(iv=>$('chip-'+iv.id).setAttribute('aria-pressed',iv===baseIv));
+  updateIvSlider();
   [0,1,2].forEach(k=>$('oct-'+k).setAttribute('aria-pressed',k===oct));
   ['upper','lower'].forEach(m=>$('mode-'+m).setAttribute('aria-pressed',m===mode));
   $('knobLabel').textContent=mode==='upper'?'上の音を調整':'下の音を調整';
@@ -544,6 +614,7 @@ setA4(A4);
 renderHist(); newQuestion();
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'&&e.target.type==='range') return;
+  if(e.target===ivKnob) return;   // つまみを選んでいるときの ← → は音程の選択に使う
   if(e.key==='ArrowRight') setOffset(offset+(e.shiftKey?0.2:1));
   if(e.key==='ArrowLeft') setOffset(offset-(e.shiftKey?0.2:1));
 });
